@@ -122,6 +122,11 @@ Set cross-compiling toolchain path to PATH and update matter submodules.
 ```bash
 test@575f27a6d251:~/shared/buildroot$ export PATH=~/shared/buildroot/output/host/bin:$PATH
 
+test@575f27a6d251:~/shared/$ git clone <connectedhomeip's github URL> matter
+test@575f27a6d251:~/shared/$ cd matter
+
+<To clone connectedhomeip repository into matter folder>
+
 test@575f27a6d251:~/shared/matter$ git submodule update --init
 test@575f27a6d251:~/shared/matter$ source scripts/activate.sh
 ```
@@ -160,10 +165,61 @@ test@575f27a6d251:~/shared/matter$ ls -al examples/lock-app/linux/out/armv5te/ch
 You can update matter example execution in rootfs, then rebuild **Image**.
 ```bash
 test@575f27a6d251:~/shared/matter$ cp examples/lighting-app/linux/out/armv5te/chip-lighting-app ~/shared/buildroot/board/nuvoton/nuc980/rootfs-chili-matter/opt
-test@575f27a6d251:~/shared/matter$ make -j 8
+
+test@575f27a6d251:~/shared/matter$ cd ~/shared/buildroot
+test@575f27a6d251:~/shared/buildroot$ make -j 8
 ```
 
-Finally, configure booting to USB and use NuWriter to download **Image** and **nuc980-chili.dtb** into DDR memory.
-- Image execution address: 0x8000
-- DTB execution address: 0x1400000
-- Option: Download & run
+### SDRAM Downloading using NuWriter
+You can use [NuWriter Utility](https://github.com/OpenNuvoton/NUC980_NuWriter)
+ to download **Image** and **nuc980-chili.dtb** into SDRAM, then run it. This way is faster than deploying on SPI NOR flash for development.
+
+- **Image** execution address: **0x8000**
+- **nuc980-chili.dtb** execution address: **0x1400000**
+- **Option** **Download & run**
+
+### SPI NOR flash using NuWriter
+You can use [NuWriter Utility](https://github.com/OpenNuvoton/NUC980_NuWriter) to program images into SPI NOR flash.
+
+- To configure booting to USB
+- To select **SPI** type in NuWriter.
+- To prepare **u-boot.bin**, **uImage** and **nuc980-chili.dtb** files buildroot built.
+- Save u-boot script as below into a TXT file, named **chili-uboot-env.txt**
+```bash
+baudrate=115200
+bootdelay=1
+stderr=serial
+stdin=serial
+stdout=serial
+loadkernel=sf read 0x8000 0x200000 0xB00000
+loaddtb=sf read 0x1400000 0xE00000 0x8000
+bootcmd=sf probe 0 45000000; run loadkernel; run loaddtb; bootm 0x8000 - 0x1400000
+```
+**Programming steps**
+- At first, to erase all blocks.
+- Program **u-boot.bin** image
+    - Image Name: Specify **u-boot.bin** file path.
+    - Image Type: **Loader**
+    - Image execute address: **0xe00000**
+    - Image start offset: **N/A**
+
+- Program **uImage** image
+    - Image Name: Specify **uImage** file path.
+    - Image Type: **Data**
+    - Image execute address: **N/A**
+    - Image start offset: **0x200000**
+
+- Program **nuc980-chili.dtb** image
+    - Image Name: Specify **nuc980-chili.dtb** file path.
+    - Image Type: **Data**
+    - Image execute address: **N/A**
+    - Image start offset: **0xe00000**
+
+- Program **chili-uboot-env.txt** image
+    - Image Name: Specify **chili-uboot-env.txt** file path.
+    - Image Type: **Environment**
+    - Image execute address: **N/A**
+    - Image start offset: **0x80000**
+
+- Return booting source to SPI NOR, reset board.
+- Enjoy.
