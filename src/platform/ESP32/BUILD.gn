@@ -24,6 +24,13 @@ declare_args() {
   chip_use_factory_data_provider = false
   chip_use_device_info_provider = false
   chip_config_software_version_number = 0
+  chip_enable_chipoble = true
+  chip_bt_nimble_enabled = false
+  chip_bt_bluedroid_enabled = false
+  chip_enable_ble_controller = false
+  chip_use_secure_cert_dac_provider = false
+  chip_use_esp32_ecdsa_peripheral = false
+  chip_enable_ethernet = false
 }
 
 defines = [
@@ -33,14 +40,12 @@ defines = [
 static_library("ESP32") {
   sources = [
     "../SingletonConfigurationManager.cpp",
-    "BLEManagerImpl.h",
     "CHIPDevicePlatformConfig.h",
     "CHIPDevicePlatformEvent.h",
     "ConfigurationManagerImpl.cpp",
     "ConfigurationManagerImpl.h",
     "ConnectivityManagerImpl.cpp",
     "ConnectivityManagerImpl.h",
-    "ConnectivityManagerImpl_Ethernet.cpp",
     "DiagnosticDataProviderImpl.cpp",
     "DiagnosticDataProviderImpl.h",
     "ESP32Config.cpp",
@@ -55,8 +60,6 @@ static_library("ESP32") {
     "PlatformManagerImpl.h",
     "SystemTimeSupport.cpp",
     "SystemTimeSupport.h",
-    "bluedroid/BLEManagerImpl.cpp",
-    "nimble/BLEManagerImpl.cpp",
   ]
 
   deps = [
@@ -64,17 +67,51 @@ static_library("ESP32") {
     "${chip_root}/src/setup_payload",
   ]
 
-  public = [ "${chip_root}/src/credentials/DeviceAttestationCredsProvider.h" ]
+  public = [
+    "${chip_root}/src/credentials/CHIPCert.h",
+    "${chip_root}/src/credentials/DeviceAttestationCredsProvider.h",
+  ]
 
   public_deps = [
     "${chip_root}/src/crypto",
     "${chip_root}/src/platform:platform_base",
   ]
+
   if (chip_enable_ota_requestor) {
     sources += [
       "OTAImageProcessorImpl.cpp",
       "OTAImageProcessorImpl.h",
     ]
+  }
+
+  if (chip_enable_chipoble) {
+    sources += [
+      "BLEManagerImpl.h",
+      "ChipDeviceScanner.h",
+    ]
+  }
+
+  if (chip_enable_ble_controller) {
+    sources += [ "ChipDeviceScanner.h" ]
+  }
+
+  if (chip_bt_nimble_enabled) {
+    sources += [ "nimble/BLEManagerImpl.cpp" ]
+    if (chip_enable_ble_controller) {
+      sources += [
+        "nimble/ChipDeviceScanner.cpp",
+        "nimble/blecent.h",
+        "nimble/misc.c",
+        "nimble/peer.c",
+      ]
+    }
+  }
+
+  if (chip_bt_bluedroid_enabled) {
+    sources += [ "bluedroid/BLEManagerImpl.cpp" ]
+    if (chip_enable_ble_controller) {
+      sources += [ "bluedroid/ChipDeviceScanner.cpp" ]
+    }
   }
 
   if (chip_enable_wifi) {
@@ -89,15 +126,25 @@ static_library("ESP32") {
     ]
     if (chip_mdns == "platform") {
       sources += [
-        "DnssdImpl.cpp",
-        "DnssdImpl.h",
+        "WiFiDnssdImpl.cpp",
+        "WiFiDnssdImpl.h",
       ]
     }
   }
 
+  if (chip_mdns == "platform") {
+    sources += [ "DnssdImpl.cpp" ]
+  }
+
+  if (chip_enable_ethernet) {
+    sources += [
+      "ConnectivityManagerImpl_Ethernet.cpp",
+      "NetworkCommissioningDriver_Ethernet.cpp",
+    ]
+  }
+
   if (chip_enable_openthread) {
     sources += [
-      "../OpenThread/DnssdImpl.cpp",
       "../OpenThread/GenericNetworkCommissioningThreadDriver.cpp",
       "../OpenThread/GenericNetworkCommissioningThreadDriver.h",
       "../OpenThread/OpenThreadUtils.cpp",
@@ -107,6 +154,12 @@ static_library("ESP32") {
       "ThreadStackManagerImpl.cpp",
       "ThreadStackManagerImpl.h",
     ]
+    if (chip_mdns == "platform") {
+      sources += [
+        "../OpenThread/OpenThreadDnssdImpl.cpp",
+        "../OpenThread/OpenThreadDnssdImpl.h",
+      ]
+    }
     configs -= [ "${chip_root}/build/config/compiler:warnings_default" ]
   }
 
@@ -123,4 +176,20 @@ static_library("ESP32") {
       "ESP32DeviceInfoProvider.h",
     ]
   }
+
+  if (chip_use_secure_cert_dac_provider) {
+    sources += [
+      "ESP32SecureCertDACProvider.cpp",
+      "ESP32SecureCertDACProvider.h",
+    ]
+  }
+
+  if (chip_use_esp32_ecdsa_peripheral) {
+    sources += [
+      "ESP32CHIPCryptoPAL.cpp",
+      "ESP32CHIPCryptoPAL.h",
+    ]
+  }
+
+  cflags = [ "-Wconversion" ]
 }

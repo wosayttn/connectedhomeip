@@ -25,8 +25,10 @@
 #include <lib/support/CodeUtils.h>
 #include <platform/CHIPDeviceLayer.h>
 
+using namespace chip;
 using namespace ::chip::Credentials;
 using namespace ::chip::DeviceLayer;
+using namespace chip::app;
 using namespace chip::app::Clusters::WindowCovering;
 
 inline void OnTriggerEffectCompleted(chip::System::Layer * systemLayer, void * appState)
@@ -36,27 +38,27 @@ inline void OnTriggerEffectCompleted(chip::System::Layer * systemLayer, void * a
 
 void OnTriggerEffect(Identify * identify)
 {
-    EmberAfIdentifyEffectIdentifier sIdentifyEffect = identify->mCurrentEffectIdentifier;
+    Clusters::Identify::EffectIdentifierEnum sIdentifyEffect = identify->mCurrentEffectIdentifier;
 
     ChipLogProgress(Zcl, "IDENTFY  OnTriggerEffect");
 
-    if (identify->mCurrentEffectIdentifier == EMBER_ZCL_IDENTIFY_EFFECT_IDENTIFIER_CHANNEL_CHANGE)
+    if (identify->mCurrentEffectIdentifier == Clusters::Identify::EffectIdentifierEnum::kChannelChange)
     {
         ChipLogProgress(Zcl, "IDENTIFY_EFFECT_IDENTIFIER_CHANNEL_CHANGE - Not supported, use effect varriant %d",
-                        identify->mEffectVariant);
-        sIdentifyEffect = static_cast<EmberAfIdentifyEffectIdentifier>(identify->mEffectVariant);
+                        to_underlying(identify->mEffectVariant));
+        sIdentifyEffect = static_cast<Clusters::Identify::EffectIdentifierEnum>(identify->mEffectVariant);
     }
 
     switch (sIdentifyEffect)
     {
-    case EMBER_ZCL_IDENTIFY_EFFECT_IDENTIFIER_BLINK:
-    case EMBER_ZCL_IDENTIFY_EFFECT_IDENTIFIER_BREATHE:
-    case EMBER_ZCL_IDENTIFY_EFFECT_IDENTIFIER_OKAY:
+    case Clusters::Identify::EffectIdentifierEnum::kBlink:
+    case Clusters::Identify::EffectIdentifierEnum::kBreathe:
+    case Clusters::Identify::EffectIdentifierEnum::kOkay:
         WindowApp::Instance().PostEvent(WindowApp::EventId::WinkOn);
         (void) chip::DeviceLayer::SystemLayer().StartTimer(chip::System::Clock::Seconds16(5), OnTriggerEffectCompleted, identify);
         break;
-    case EMBER_ZCL_IDENTIFY_EFFECT_IDENTIFIER_FINISH_EFFECT:
-    case EMBER_ZCL_IDENTIFY_EFFECT_IDENTIFIER_STOP_EFFECT:
+    case Clusters::Identify::EffectIdentifierEnum::kFinishEffect:
+    case Clusters::Identify::EffectIdentifierEnum::kStopEffect:
         (void) chip::DeviceLayer::SystemLayer().CancelTimer(OnTriggerEffectCompleted, identify);
         break;
     default:
@@ -68,7 +70,7 @@ Identify gIdentify = {
     chip::EndpointId{ 1 },
     [](Identify *) { ChipLogProgress(Zcl, "onIdentifyStart"); },
     [](Identify *) { ChipLogProgress(Zcl, "onIdentifyStop"); },
-    EMBER_ZCL_IDENTIFY_IDENTIFY_TYPE_VISIBLE_LED,
+    Clusters::Identify::IdentifyTypeEnum::kVisibleIndicator,
     OnTriggerEffect,
 };
 
@@ -242,7 +244,7 @@ void WindowApp::DispatchEvent(const WindowApp::Event & event)
         }
         else
         {
-            GetCover().StepToward(OperationalState::MovingUpOrOpen, mTiltMode);
+            GetCover().UpdateTargetPosition(OperationalState::MovingUpOrOpen, mTiltMode);
         }
         break;
 
@@ -276,7 +278,7 @@ void WindowApp::DispatchEvent(const WindowApp::Event & event)
         }
         else
         {
-            GetCover().StepToward(OperationalState::MovingDownOrClose, mTiltMode);
+            GetCover().UpdateTargetPosition(OperationalState::MovingDownOrClose, mTiltMode);
         }
         break;
     case EventId::AttributeChange:
@@ -427,8 +429,9 @@ void WindowApp::Cover::Init(chip::EndpointId endpoint)
     chip::BitMask<ConfigStatus> configStatus = ConfigStatusGet(endpoint);
     configStatus.Set(ConfigStatus::kLiftEncoderControlled);
     configStatus.Set(ConfigStatus::kTiltEncoderControlled);
-    configStatus.Set(ConfigStatus::kOnlineReserved);
     ConfigStatusSet(endpoint, configStatus);
+
+    chip::app::Clusters::WindowCovering::ConfigStatusUpdateFeatures(endpoint);
 
     // Attribute: Id 13 EndProductType
     EndProductTypeSet(endpoint, EndProductType::kInteriorBlind);
@@ -591,6 +594,37 @@ void WindowApp::Cover::StepToward(OperationalState direction, bool isTilt)
     {
         LiftStepToward(direction);
     }
+}
+
+void WindowApp::Cover::UpdateTargetPosition(OperationalState direction, bool isTilt)
+{
+    EmberAfStatus status;
+    NPercent100ths current;
+    chip::Percent100ths target;
+
+    chip::DeviceLayer::PlatformMgr().LockChipStack();
+
+    if (isTilt)
+    {
+        status = Attributes::CurrentPositionTiltPercent100ths::Get(mEndpoint, current);
+        if ((status == EMBER_ZCL_STATUS_SUCCESS) && !current.IsNull())
+        {
+
+            target = ComputePercent100thsStep(direction, current.Value(), TILT_DELTA);
+            (void) Attributes::TargetPositionTiltPercent100ths::Set(mEndpoint, target);
+        }
+    }
+    else
+    {
+        status = Attributes::CurrentPositionLiftPercent100ths::Get(mEndpoint, current);
+        if ((status == EMBER_ZCL_STATUS_SUCCESS) && !current.IsNull())
+        {
+
+            target = ComputePercent100thsStep(direction, current.Value(), LIFT_DELTA);
+            (void) Attributes::TargetPositionLiftPercent100ths::Set(mEndpoint, target);
+        }
+    }
+    chip::DeviceLayer::PlatformMgr().UnlockChipStack();
 }
 
 Type WindowApp::Cover::CycleType()

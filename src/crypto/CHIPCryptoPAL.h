@@ -1,6 +1,6 @@
 /*
  *
- *    Copyright (c) 2020-2022 Project CHIP Authors
+ *    Copyright (c) 2020-2023 Project CHIP Authors
  *
  *    Licensed under the Apache License, Version 2.0 (the "License");
  *    you may not use this file except in compliance with the License.
@@ -32,6 +32,7 @@
 #include <lib/core/CHIPVendorIdentifiers.hpp>
 #include <lib/core/Optional.h>
 #include <lib/support/CodeUtils.h>
+#include <lib/support/SafePointerCast.h>
 #include <lib/support/Span.h>
 
 #include <stddef.h>
@@ -42,13 +43,15 @@ namespace Crypto {
 
 constexpr size_t kMax_x509_Certificate_Length = 600;
 
-constexpr size_t kP256_FE_Length                  = 32;
-constexpr size_t kP256_ECDSA_Signature_Length_Raw = (2 * kP256_FE_Length);
-constexpr size_t kP256_Point_Length               = (2 * kP256_FE_Length + 1);
-constexpr size_t kSHA256_Hash_Length              = 32;
-constexpr size_t kSHA1_Hash_Length                = 20;
-constexpr size_t kSubjectKeyIdentifierLength      = kSHA1_Hash_Length;
-constexpr size_t kAuthorityKeyIdentifierLength    = kSHA1_Hash_Length;
+constexpr size_t kP256_FE_Length                        = 32;
+constexpr size_t kP256_ECDSA_Signature_Length_Raw       = (2 * kP256_FE_Length);
+constexpr size_t kP256_Point_Length                     = (2 * kP256_FE_Length + 1);
+constexpr size_t kSHA256_Hash_Length                    = 32;
+constexpr size_t kSHA1_Hash_Length                      = 20;
+constexpr size_t kSubjectKeyIdentifierLength            = kSHA1_Hash_Length;
+constexpr size_t kAuthorityKeyIdentifierLength          = kSHA1_Hash_Length;
+constexpr size_t kMaxCertificateSerialNumberLength      = 20;
+constexpr size_t kMaxCertificateDistinguishedNameLength = 200;
 
 constexpr size_t CHIP_CRYPTO_GROUP_SIZE_BYTES      = kP256_FE_Length;
 constexpr size_t CHIP_CRYPTO_PUBLIC_KEY_SIZE_BYTES = kP256_Point_Length;
@@ -130,13 +133,13 @@ constexpr size_t kCompressedFabricIdentifierSize = 8;
  * Spake2+ parameters for P256
  * Defined in https://www.ietf.org/id/draft-bar-cfrg-spake2plus-01.html#name-ciphersuites
  */
-const uint8_t spake2p_M_p256[65] = {
+const uint8_t spake2p_M_p256[] = {
     0x04, 0x88, 0x6e, 0x2f, 0x97, 0xac, 0xe4, 0x6e, 0x55, 0xba, 0x9d, 0xd7, 0x24, 0x25, 0x79, 0xf2, 0x99,
     0x3b, 0x64, 0xe1, 0x6e, 0xf3, 0xdc, 0xab, 0x95, 0xaf, 0xd4, 0x97, 0x33, 0x3d, 0x8f, 0xa1, 0x2f, 0x5f,
     0xf3, 0x55, 0x16, 0x3e, 0x43, 0xce, 0x22, 0x4e, 0x0b, 0x0e, 0x65, 0xff, 0x02, 0xac, 0x8e, 0x5c, 0x7b,
     0xe0, 0x94, 0x19, 0xc7, 0x85, 0xe0, 0xca, 0x54, 0x7d, 0x55, 0xa1, 0x2e, 0x2d, 0x20,
 };
-const uint8_t spake2p_N_p256[65] = {
+const uint8_t spake2p_N_p256[] = {
     0x04, 0xd8, 0xbb, 0xd6, 0xc6, 0x39, 0xc6, 0x29, 0x37, 0xb0, 0x4d, 0x99, 0x7f, 0x38, 0xc3, 0x77, 0x07,
     0x19, 0xc6, 0x29, 0xd7, 0x01, 0x4d, 0x49, 0xa2, 0x4b, 0x4f, 0x98, 0xba, 0xa1, 0x29, 0x2b, 0x49, 0x07,
     0xd6, 0x0a, 0xa6, 0xbf, 0xad, 0xe4, 0x50, 0x08, 0xa6, 0x36, 0x33, 0x7f, 0x51, 0x68, 0xc6, 0x4d, 0x9b,
@@ -345,6 +348,11 @@ public:
      */
     FixedByteSpan<kCapacity> Span() const { return FixedByteSpan<kCapacity>(mBytes); }
 
+    /**
+     * @brief Returns capacity of the buffer
+     */
+    static constexpr size_t Capacity() { return kCapacity; }
+
 private:
     uint8_t mBytes[kCapacity];
 };
@@ -354,6 +362,8 @@ using P256ECDHDerivedSecret = SensitiveDataBuffer<kMax_ECDH_Secret_Length>;
 
 using IdentityProtectionKey     = SensitiveDataFixedBuffer<CHIP_CRYPTO_SYMMETRIC_KEY_LENGTH_BYTES>;
 using IdentityProtectionKeySpan = FixedByteSpan<Crypto::CHIP_CRYPTO_SYMMETRIC_KEY_LENGTH_BYTES>;
+
+using AttestationChallenge = SensitiveDataFixedBuffer<CHIP_CRYPTO_SYMMETRIC_KEY_LENGTH_BYTES>;
 
 class P256PublicKey : public ECPKey<P256ECDSASignature>
 {
@@ -541,6 +551,54 @@ protected:
     bool mInitialized = false;
 };
 
+using Aes128KeyByteArray = uint8_t[CHIP_CRYPTO_SYMMETRIC_KEY_LENGTH_BYTES];
+
+/**
+ * @brief Platform-specific AES key
+ *
+ * The class represents AES key used by Matter stack either in the form of raw key material or key
+ * reference, depending on the platform. To achieve that, it contains an opaque context that can be
+ * cast to a concrete representation used by the given platform. Note that currently Matter uses
+ * 128-bit symmetric keys only.
+ */
+class Aes128KeyHandle
+{
+public:
+    Aes128KeyHandle() = default;
+    ~Aes128KeyHandle() { ClearSecretData(mContext.mOpaque); }
+
+    Aes128KeyHandle(const Aes128KeyHandle &) = delete;
+    Aes128KeyHandle(Aes128KeyHandle &&)      = delete;
+    void operator=(const Aes128KeyHandle &) = delete;
+    void operator=(Aes128KeyHandle &&) = delete;
+
+    /**
+     * @brief Get internal context cast to the desired key representation
+     */
+    template <class T>
+    const T & As() const
+    {
+        return *SafePointerCast<const T *>(&mContext);
+    }
+
+    /**
+     * @brief Get internal context cast to the desired, mutable key representation
+     */
+    template <class T>
+    T & AsMutable()
+    {
+        return *SafePointerCast<T *>(&mContext);
+    }
+
+private:
+    static constexpr size_t kContextSize = CHIP_CRYPTO_SYMMETRIC_KEY_LENGTH_BYTES;
+
+    struct alignas(uintptr_t) OpaqueContext
+    {
+        uint8_t mOpaque[kContextSize] = {};
+    } mContext;
+};
+
 /**
  * @brief Convert a raw ECDSA signature to ASN.1 signature (per X9.62) as used by TLS libraries.
  *
@@ -612,7 +670,6 @@ CHIP_ERROR ConvertIntegerRawToDerWithoutTag(const ByteSpan & raw_integer, Mutabl
  * @param aad Additional authentication data
  * @param aad_length Length of additional authentication data
  * @param key Encryption key
- * @param key_length Length of encryption key (in bytes)
  * @param nonce Encryption nonce
  * @param nonce_length Length of encryption nonce
  * @param ciphertext Buffer to write ciphertext into. Caller must ensure this is large enough to hold the ciphertext
@@ -621,7 +678,7 @@ CHIP_ERROR ConvertIntegerRawToDerWithoutTag(const ByteSpan & raw_integer, Mutabl
  * @return Returns a CHIP_ERROR on error, CHIP_NO_ERROR otherwise
  * */
 CHIP_ERROR AES_CCM_encrypt(const uint8_t * plaintext, size_t plaintext_length, const uint8_t * aad, size_t aad_length,
-                           const uint8_t * key, size_t key_length, const uint8_t * nonce, size_t nonce_length, uint8_t * ciphertext,
+                           const Aes128KeyHandle & key, const uint8_t * nonce, size_t nonce_length, uint8_t * ciphertext,
                            uint8_t * tag, size_t tag_length);
 
 /**
@@ -639,14 +696,13 @@ CHIP_ERROR AES_CCM_encrypt(const uint8_t * plaintext, size_t plaintext_length, c
  * @param tag Tag to use to decrypt
  * @param tag_length Length of tag
  * @param key Decryption key
- * @param key_length Length of Decryption key (in bytes)
  * @param nonce Encryption nonce
  * @param nonce_length Length of encryption nonce
  * @param plaintext Buffer to write plaintext into
  * @return Returns a CHIP_ERROR on error, CHIP_NO_ERROR otherwise
  **/
 CHIP_ERROR AES_CCM_decrypt(const uint8_t * ciphertext, size_t ciphertext_length, const uint8_t * aad, size_t aad_length,
-                           const uint8_t * tag, size_t tag_length, const uint8_t * key, size_t key_length, const uint8_t * nonce,
+                           const uint8_t * tag, size_t tag_length, const Aes128KeyHandle & key, const uint8_t * nonce,
                            size_t nonce_length, uint8_t * plaintext);
 
 /**
@@ -660,13 +716,12 @@ CHIP_ERROR AES_CCM_decrypt(const uint8_t * ciphertext, size_t ciphertext_length,
  * @param input Input text to encrypt/decrypt
  * @param input_length Length of ciphertext
  * @param key Decryption key
- * @param key_length Length of Decryption key (in bytes)
  * @param nonce Encryption nonce
  * @param nonce_length Length of encryption nonce
  * @param output Buffer to write output into
  * @return Returns a CHIP_ERROR on error, CHIP_NO_ERROR otherwise
  **/
-CHIP_ERROR AES_CTR_crypt(const uint8_t * input, size_t input_length, const uint8_t * key, size_t key_length, const uint8_t * nonce,
+CHIP_ERROR AES_CTR_crypt(const uint8_t * input, size_t input_length, const Aes128KeyHandle & key, const uint8_t * nonce,
                          size_t nonce_length, uint8_t * output);
 
 /**
@@ -1512,6 +1567,21 @@ CHIP_ERROR ExtractSKIDFromX509Cert(const ByteSpan & certificate, MutableByteSpan
  * @brief Extracts the Authority Key Identifier from an X509 Certificate.
  **/
 CHIP_ERROR ExtractAKIDFromX509Cert(const ByteSpan & certificate, MutableByteSpan & akid);
+
+/**
+ * @brief Extracts Serial Number from X509 Certificate.
+ **/
+CHIP_ERROR ExtractSerialNumberFromX509Cert(const ByteSpan & certificate, MutableByteSpan & serialNumber);
+
+/**
+ * @brief Extracts Subject Distinguished Name from X509 Certificate. The value is copied into buffer in a raw ASN.1 X.509 format.
+ **/
+CHIP_ERROR ExtractSubjectFromX509Cert(const ByteSpan & certificate, MutableByteSpan & subject);
+
+/**
+ * @brief Extracts Issuer Distinguished Name from X509 Certificate. The value is copied into buffer in a raw ASN.1 X.509 format.
+ **/
+CHIP_ERROR ExtractIssuerFromX509Cert(const ByteSpan & certificate, MutableByteSpan & issuer);
 
 /**
  * @brief Checks for resigned version of the certificate in the list and returns it.

@@ -29,6 +29,7 @@
 #include <credentials/GroupDataProviderImpl.h>
 #include <credentials/PersistentStorageOpCertStore.h>
 #include <crypto/PersistentStorageOperationalKeystore.h>
+#include <crypto/RawKeySessionKeystore.h>
 
 #pragma once
 
@@ -56,8 +57,8 @@ public:
     using PeerId                 = ::chip::PeerId;
     using PeerAddress            = ::chip::Transport::PeerAddress;
 
-    static constexpr uint16_t kMaxGroupsPerFabric    = 5;
-    static constexpr uint16_t kMaxGroupKeysPerFabric = 8;
+    static constexpr uint16_t kMaxGroupsPerFabric    = 50;
+    static constexpr uint16_t kMaxGroupKeysPerFabric = 25;
 
     CHIPCommand(const char * commandName, CredentialIssuerCommands * credIssuerCmds, const char * helpText = nullptr) :
         Command(commandName, helpText), mCredIssuerCmds(credIssuerCmds)
@@ -85,6 +86,11 @@ public:
         AddArgument("trace_decode", 0, 1, &mTraceDecode);
 #endif // CHIP_CONFIG_TRANSPORT_TRACE_ENABLED
         AddArgument("ble-adapter", 0, UINT16_MAX, &mBleAdapterId);
+        AddArgument("storage-directory", &mStorageDirectory,
+                    "Directory to place chip-tool's storage files in.  Defaults to $TMPDIR, with fallback to /tmp");
+        AddArgument(
+            "commissioner-vendor-id", 0, UINT16_MAX, &mCommissionerVendorId,
+            "The vendor id to use for chip-tool. If not provided, chip::VendorId::TestVendor1 (65521, 0xFFF1) will be used.");
     }
 
     /////////// Command Interface /////////
@@ -93,6 +99,14 @@ public:
     void SetCommandExitStatus(CHIP_ERROR status)
     {
         mCommandExitStatus = status;
+        // In interactive mode the stack is not shut down once a command is ended.
+        // That means calling `ErrorStr(err)` from the main thread when command
+        // completion is signaled may race since `ErrorStr` uses a static sErrorStr
+        // buffer for computing the error string.  Call it here instead.
+        if (IsInteractive() && CHIP_NO_ERROR != status)
+        {
+            ChipLogError(chipTool, "Run command failure: %s", chip::ErrorStr(status));
+        }
         StopWaiting();
     }
 
@@ -139,12 +153,14 @@ protected:
 #endif // CONFIG_USE_LOCAL_STORAGE
     chip::PersistentStorageOperationalKeystore mOperationalKeystore;
     chip::Credentials::PersistentStorageOpCertStore mOpCertStore;
+    chip::Crypto::RawKeySessionKeystore mSessionKeystore;
 
     static chip::Credentials::GroupDataProviderImpl sGroupDataProvider;
     CredentialIssuerCommands * mCredIssuerCmds;
 
     std::string GetIdentity();
     CHIP_ERROR GetIdentityNodeId(std::string identity, chip::NodeId * nodeId);
+    CHIP_ERROR GetIdentityRootCertificate(std::string identity, chip::ByteSpan & span);
     void SetIdentity(const char * name);
 
     // This method returns the commissioner instance to be used for running the command.
@@ -169,12 +185,19 @@ private:
         }
         std::string mName;
         chip::NodeId mLocalNodeId;
+        uint8_t mRCAC[chip::Controller::kMaxCHIPDERCertLength] = {};
+        uint8_t mICAC[chip::Controller::kMaxCHIPDERCertLength] = {};
+        uint8_t mNOC[chip::Controller::kMaxCHIPDERCertLength]  = {};
+
+        size_t mRCACLen;
+        size_t mICACLen;
+        size_t mNOCLen;
     };
 
     // InitializeCommissioner uses various members, so can't be static.  This is
     // obviously a little odd, since the commissioners are then shared across
     // multiple commands in interactive mode...
-    CHIP_ERROR InitializeCommissioner(const CommissionerIdentity & identity, chip::FabricId fabricId);
+    CHIP_ERROR InitializeCommissioner(CommissionerIdentity & identity, chip::FabricId fabricId);
     void ShutdownCommissioner(const CommissionerIdentity & key);
     chip::FabricId CurrentCommissionerId();
 
@@ -183,6 +206,7 @@ private:
 
     chip::Optional<char *> mCommissionerName;
     chip::Optional<chip::NodeId> mCommissionerNodeId;
+    chip::Optional<chip::VendorId> mCommissionerVendorId;
     chip::Optional<uint16_t> mBleAdapterId;
     chip::Optional<char *> mPaaTrustStorePath;
     chip::Optional<char *> mCDTrustStorePath;

@@ -1,6 +1,6 @@
 /*
  *
- *    Copyright (c) 2020-2022 Project CHIP Authors
+ *    Copyright (c) 2020-2023 Project CHIP Authors
  *
  *    Licensed under the Apache License, Version 2.0 (the "License");
  *    you may not use this file except in compliance with the License.
@@ -158,7 +158,7 @@ static int timeCompare(mbedtls_x509_time * t1, mbedtls_x509_time * t2)
 }
 
 CHIP_ERROR AES_CCM_encrypt(const uint8_t * plaintext, size_t plaintext_length, const uint8_t * aad, size_t aad_length,
-                           const uint8_t * key, size_t key_length, const uint8_t * nonce, size_t nonce_length, uint8_t * ciphertext,
+                           const Aes128KeyHandle & key, const uint8_t * nonce, size_t nonce_length, uint8_t * ciphertext,
                            uint8_t * tag, size_t tag_length)
 {
     CHIP_ERROR error          = CHIP_NO_ERROR;
@@ -169,9 +169,6 @@ CHIP_ERROR AES_CCM_encrypt(const uint8_t * plaintext, size_t plaintext_length, c
     bool allocated_buffer     = false;
 
     VerifyOrExit(_isValidTagLength(tag_length), error = CHIP_ERROR_INVALID_ARGUMENT);
-    VerifyOrExit(key_length == kAES_CCM128_Key_Length, error = CHIP_ERROR_INVALID_ARGUMENT);
-    VerifyOrExit(key != nullptr, error = CHIP_ERROR_INVALID_ARGUMENT);
-    VerifyOrExit(key_length == kAES_CCM128_Key_Length, error = CHIP_ERROR_INVALID_ARGUMENT);
     VerifyOrExit(nonce != nullptr, error = CHIP_ERROR_INVALID_ARGUMENT);
     VerifyOrExit(nonce_length > 0, error = CHIP_ERROR_INVALID_ARGUMENT);
     VerifyOrExit(CanCastTo<int>(nonce_length), error = CHIP_ERROR_INVALID_ARGUMENT);
@@ -188,12 +185,12 @@ CHIP_ERROR AES_CCM_encrypt(const uint8_t * plaintext, size_t plaintext_length, c
     psa_crypto_init();
 
     psa_set_key_type(&attr, PSA_KEY_TYPE_AES);
-    psa_set_key_bits(&attr, key_length * 8);
+    psa_set_key_bits(&attr, sizeof(Aes128KeyByteArray) * 8);
     psa_set_key_algorithm(&attr, PSA_ALG_AEAD_WITH_AT_LEAST_THIS_LENGTH_TAG(PSA_ALG_CCM, 8));
     psa_set_key_usage_flags(&attr, PSA_KEY_USAGE_ENCRYPT);
 
     status = psa_driver_wrapper_aead_encrypt(
-        &attr, Uint8::to_const_uchar(key), key_length, PSA_ALG_AEAD_WITH_SHORTENED_TAG(PSA_ALG_CCM, tag_length),
+        &attr, key.As<Aes128KeyByteArray>(), sizeof(Aes128KeyByteArray), PSA_ALG_AEAD_WITH_SHORTENED_TAG(PSA_ALG_CCM, tag_length),
         Uint8::to_const_uchar(nonce), nonce_length, Uint8::to_const_uchar(aad), aad_length, Uint8::to_const_uchar(plaintext),
         plaintext_length, allocated_buffer ? buffer : ciphertext, plaintext_length + tag_length, &output_length);
 
@@ -217,7 +214,7 @@ exit:
 }
 
 CHIP_ERROR AES_CCM_decrypt(const uint8_t * ciphertext, size_t ciphertext_len, const uint8_t * aad, size_t aad_len,
-                           const uint8_t * tag, size_t tag_length, const uint8_t * key, size_t key_length, const uint8_t * nonce,
+                           const uint8_t * tag, size_t tag_length, const Aes128KeyHandle & key, const uint8_t * nonce,
                            size_t nonce_length, uint8_t * plaintext)
 {
     CHIP_ERROR error          = CHIP_NO_ERROR;
@@ -229,8 +226,6 @@ CHIP_ERROR AES_CCM_decrypt(const uint8_t * ciphertext, size_t ciphertext_len, co
 
     VerifyOrExit(_isValidTagLength(tag_length), error = CHIP_ERROR_INVALID_ARGUMENT);
     VerifyOrExit(tag != nullptr, error = CHIP_ERROR_INVALID_ARGUMENT);
-    VerifyOrExit(key != nullptr, error = CHIP_ERROR_INVALID_ARGUMENT);
-    VerifyOrExit(key_length == kAES_CCM128_Key_Length, error = CHIP_ERROR_INVALID_ARGUMENT);
     VerifyOrExit(nonce != nullptr, error = CHIP_ERROR_INVALID_ARGUMENT);
     VerifyOrExit(nonce_length > 0, error = CHIP_ERROR_INVALID_ARGUMENT);
 
@@ -245,7 +240,7 @@ CHIP_ERROR AES_CCM_decrypt(const uint8_t * ciphertext, size_t ciphertext_len, co
     psa_crypto_init();
 
     psa_set_key_type(&attr, PSA_KEY_TYPE_AES);
-    psa_set_key_bits(&attr, key_length * 8);
+    psa_set_key_bits(&attr, sizeof(Aes128KeyByteArray) * 8);
     psa_set_key_algorithm(&attr, PSA_ALG_AEAD_WITH_AT_LEAST_THIS_LENGTH_TAG(PSA_ALG_CCM, 8));
     psa_set_key_usage_flags(&attr, PSA_KEY_USAGE_DECRYPT);
 
@@ -256,7 +251,7 @@ CHIP_ERROR AES_CCM_decrypt(const uint8_t * ciphertext, size_t ciphertext_len, co
     }
 
     status = psa_driver_wrapper_aead_decrypt(
-        &attr, Uint8::to_const_uchar(key), key_length, PSA_ALG_AEAD_WITH_SHORTENED_TAG(PSA_ALG_CCM, tag_length),
+        &attr, key.As<Aes128KeyByteArray>(), sizeof(Aes128KeyByteArray), PSA_ALG_AEAD_WITH_SHORTENED_TAG(PSA_ALG_CCM, tag_length),
         Uint8::to_const_uchar(nonce), nonce_length, Uint8::to_const_uchar(aad), aad_len, allocated_buffer ? buffer : ciphertext,
         ciphertext_len + tag_length, plaintext, ciphertext_len, &output_length);
 
@@ -778,7 +773,7 @@ CHIP_ERROR P256Keypair::ECDH_derive_secret(const P256PublicKey & remote_public_k
                                    &output_length);
 
     VerifyOrExit(status == PSA_SUCCESS, error = CHIP_ERROR_INTERNAL);
-    SuccessOrExit(out_secret.SetLength(output_length));
+    SuccessOrExit(error = out_secret.SetLength(output_length));
 
 exit:
     _log_PSA_error(status);
@@ -1703,7 +1698,9 @@ CHIP_ERROR ValidateCertificateChain(const uint8_t * rootCertificate, size_t root
         error  = CHIP_ERROR_CERT_NOT_TRUSTED;
         break;
     default:
-        SuccessOrExit((result = CertificateChainValidationResult::kInternalFrameworkError, error = CHIP_ERROR_INTERNAL));
+        result = CertificateChainValidationResult::kInternalFrameworkError;
+        error  = CHIP_ERROR_INTERNAL;
+        break;
     }
 
 exit:
@@ -1970,6 +1967,40 @@ CHIP_ERROR ExtractAKIDFromX509Cert(const ByteSpan & certificate, MutableByteSpan
     return ExtractKIDFromX509Cert(false, certificate, akid);
 }
 
+CHIP_ERROR ExtractSerialNumberFromX509Cert(const ByteSpan & certificate, MutableByteSpan & serialNumber)
+{
+#if defined(MBEDTLS_X509_CRT_PARSE_C)
+    CHIP_ERROR error = CHIP_NO_ERROR;
+    int result       = 0;
+    uint8_t * p      = nullptr;
+    size_t len       = 0;
+    mbedtls_x509_crt mbed_cert;
+
+    mbedtls_x509_crt_init(&mbed_cert);
+
+    result = mbedtls_x509_crt_parse(&mbed_cert, Uint8::to_const_uchar(certificate.data()), certificate.size());
+    VerifyOrExit(result == 0, error = CHIP_ERROR_INTERNAL);
+
+    p   = mbed_cert.CHIP_CRYPTO_PAL_PRIVATE_X509(serial).CHIP_CRYPTO_PAL_PRIVATE_X509(p);
+    len = mbed_cert.CHIP_CRYPTO_PAL_PRIVATE_X509(serial).CHIP_CRYPTO_PAL_PRIVATE_X509(len);
+    VerifyOrExit(len <= serialNumber.size(), error = CHIP_ERROR_BUFFER_TOO_SMALL);
+
+    memcpy(serialNumber.data(), p, len);
+    serialNumber.reduce_size(len);
+
+exit:
+    _log_mbedTLS_error(result);
+    mbedtls_x509_crt_free(&mbed_cert);
+
+#else
+    (void) certificate;
+    (void) serialNumber;
+    CHIP_ERROR error = CHIP_ERROR_NOT_IMPLEMENTED;
+#endif // defined(MBEDTLS_X509_CRT_PARSE_C)
+
+    return error;
+}
+
 CHIP_ERROR ExtractVIDPIDFromX509Cert(const ByteSpan & certificate, AttestationCertVidPid & vidpid)
 {
 #if defined(MBEDTLS_X509_CRT_PARSE_C)
@@ -2027,9 +2058,9 @@ exit:
 }
 
 namespace {
-#if defined(MBEDTLS_X509_CRT_PARSE_C)
-CHIP_ERROR ExtractRawSubjectFromX509Cert(const ByteSpan & certificate, MutableByteSpan & subject)
+CHIP_ERROR ExtractRawDNFromX509Cert(bool extractSubject, const ByteSpan & certificate, MutableByteSpan & dn)
 {
+#if defined(MBEDTLS_X509_CRT_PARSE_C)
     CHIP_ERROR error = CHIP_NO_ERROR;
     int result       = 0;
     uint8_t * p      = nullptr;
@@ -2042,28 +2073,50 @@ CHIP_ERROR ExtractRawSubjectFromX509Cert(const ByteSpan & certificate, MutableBy
     result = mbedtls_x509_crt_parse(&mbedCertificate, Uint8::to_const_uchar(certificate.data()), certificate.size());
     VerifyOrExit(result == 0, error = CHIP_ERROR_INTERNAL);
 
-    len = mbedCertificate.CHIP_CRYPTO_PAL_PRIVATE_X509(subject_raw).CHIP_CRYPTO_PAL_PRIVATE_X509(len);
-    p   = mbedCertificate.CHIP_CRYPTO_PAL_PRIVATE_X509(subject_raw).CHIP_CRYPTO_PAL_PRIVATE_X509(p);
+    if (extractSubject)
+    {
+        len = mbedCertificate.CHIP_CRYPTO_PAL_PRIVATE_X509(subject_raw).CHIP_CRYPTO_PAL_PRIVATE_X509(len);
+        p   = mbedCertificate.CHIP_CRYPTO_PAL_PRIVATE_X509(subject_raw).CHIP_CRYPTO_PAL_PRIVATE_X509(p);
+    }
+    else
+    {
+        len = mbedCertificate.CHIP_CRYPTO_PAL_PRIVATE_X509(issuer_raw).CHIP_CRYPTO_PAL_PRIVATE_X509(len);
+        p   = mbedCertificate.CHIP_CRYPTO_PAL_PRIVATE_X509(issuer_raw).CHIP_CRYPTO_PAL_PRIVATE_X509(p);
+    }
 
-    VerifyOrExit(len <= subject.size(), error = CHIP_ERROR_BUFFER_TOO_SMALL);
-    memcpy(subject.data(), p, len);
-    subject.reduce_size(len);
+    VerifyOrExit(len <= dn.size(), error = CHIP_ERROR_BUFFER_TOO_SMALL);
+    memcpy(dn.data(), p, len);
+    dn.reduce_size(len);
 
 exit:
     _log_mbedTLS_error(result);
     mbedtls_x509_crt_free(&mbedCertificate);
 
+#else
+    (void) certificate;
+    (void) dn;
+    CHIP_ERROR error = CHIP_ERROR_NOT_IMPLEMENTED;
+#endif // defined(MBEDTLS_X509_CRT_PARSE_C)
+
     return error;
 }
-#endif // defined(MBEDTLS_X509_CRT_PARSE_C)
 } // namespace
+
+CHIP_ERROR ExtractSubjectFromX509Cert(const ByteSpan & certificate, MutableByteSpan & subject)
+{
+    return ExtractRawDNFromX509Cert(true, certificate, subject);
+}
+
+CHIP_ERROR ExtractIssuerFromX509Cert(const ByteSpan & certificate, MutableByteSpan & issuer)
+{
+    return ExtractRawDNFromX509Cert(false, certificate, issuer);
+}
 
 CHIP_ERROR ReplaceCertIfResignedCertFound(const ByteSpan & referenceCertificate, const ByteSpan * candidateCertificates,
                                           size_t candidateCertificatesCount, ByteSpan & outCertificate)
 {
 #if defined(MBEDTLS_X509_CRT_PARSE_C)
-    constexpr size_t kMaxCertificateSubjectLength = 150;
-    uint8_t referenceSubjectBuf[kMaxCertificateSubjectLength];
+    uint8_t referenceSubjectBuf[kMaxCertificateDistinguishedNameLength];
     uint8_t referenceSKIDBuf[kSubjectKeyIdentifierLength];
     MutableByteSpan referenceSubject(referenceSubjectBuf);
     MutableByteSpan referenceSKID(referenceSKIDBuf);
@@ -2072,18 +2125,18 @@ CHIP_ERROR ReplaceCertIfResignedCertFound(const ByteSpan & referenceCertificate,
 
     ReturnErrorCodeIf(candidateCertificates == nullptr || candidateCertificatesCount == 0, CHIP_NO_ERROR);
 
-    ReturnErrorOnFailure(ExtractRawSubjectFromX509Cert(referenceCertificate, referenceSubject));
+    ReturnErrorOnFailure(ExtractSubjectFromX509Cert(referenceCertificate, referenceSubject));
     ReturnErrorOnFailure(ExtractSKIDFromX509Cert(referenceCertificate, referenceSKID));
 
     for (size_t i = 0; i < candidateCertificatesCount; i++)
     {
         const ByteSpan candidateCertificate = candidateCertificates[i];
-        uint8_t candidateSubjectBuf[kMaxCertificateSubjectLength];
+        uint8_t candidateSubjectBuf[kMaxCertificateDistinguishedNameLength];
         uint8_t candidateSKIDBuf[kSubjectKeyIdentifierLength];
         MutableByteSpan candidateSubject(candidateSubjectBuf);
         MutableByteSpan candidateSKID(candidateSKIDBuf);
 
-        ReturnErrorOnFailure(ExtractRawSubjectFromX509Cert(candidateCertificate, candidateSubject));
+        ReturnErrorOnFailure(ExtractSubjectFromX509Cert(candidateCertificate, candidateSubject));
         ReturnErrorOnFailure(ExtractSKIDFromX509Cert(candidateCertificate, candidateSKID));
 
         if (referenceSKID.data_equal(candidateSKID) && referenceSubject.data_equal(candidateSubject))

@@ -94,41 +94,37 @@ void Instance::InvokeCommand(HandlerContext & ctxt)
     switch (ctxt.mRequestPath.mCommandId)
     {
     case Commands::ScanNetworks::Id:
-        VerifyOrReturn(mFeatureFlags.Has(NetworkCommissioningFeature::kWiFiNetworkInterface) ||
-                       mFeatureFlags.Has(NetworkCommissioningFeature::kThreadNetworkInterface));
+        VerifyOrReturn(mFeatureFlags.Has(Feature::kWiFiNetworkInterface) || mFeatureFlags.Has(Feature::kThreadNetworkInterface));
         HandleCommand<Commands::ScanNetworks::DecodableType>(
             ctxt, [this](HandlerContext & ctx, const auto & req) { HandleScanNetworks(ctx, req); });
         return;
 
     case Commands::AddOrUpdateWiFiNetwork::Id:
-        VerifyOrReturn(mFeatureFlags.Has(NetworkCommissioningFeature::kWiFiNetworkInterface));
+        VerifyOrReturn(mFeatureFlags.Has(Feature::kWiFiNetworkInterface));
         HandleCommand<Commands::AddOrUpdateWiFiNetwork::DecodableType>(
             ctxt, [this](HandlerContext & ctx, const auto & req) { HandleAddOrUpdateWiFiNetwork(ctx, req); });
         return;
 
     case Commands::AddOrUpdateThreadNetwork::Id:
-        VerifyOrReturn(mFeatureFlags.Has(NetworkCommissioningFeature::kThreadNetworkInterface));
+        VerifyOrReturn(mFeatureFlags.Has(Feature::kThreadNetworkInterface));
         HandleCommand<Commands::AddOrUpdateThreadNetwork::DecodableType>(
             ctxt, [this](HandlerContext & ctx, const auto & req) { HandleAddOrUpdateThreadNetwork(ctx, req); });
         return;
 
     case Commands::RemoveNetwork::Id:
-        VerifyOrReturn(mFeatureFlags.Has(NetworkCommissioningFeature::kWiFiNetworkInterface) ||
-                       mFeatureFlags.Has(NetworkCommissioningFeature::kThreadNetworkInterface));
+        VerifyOrReturn(mFeatureFlags.Has(Feature::kWiFiNetworkInterface) || mFeatureFlags.Has(Feature::kThreadNetworkInterface));
         HandleCommand<Commands::RemoveNetwork::DecodableType>(
             ctxt, [this](HandlerContext & ctx, const auto & req) { HandleRemoveNetwork(ctx, req); });
         return;
 
     case Commands::ConnectNetwork::Id:
-        VerifyOrReturn(mFeatureFlags.Has(NetworkCommissioningFeature::kWiFiNetworkInterface) ||
-                       mFeatureFlags.Has(NetworkCommissioningFeature::kThreadNetworkInterface));
+        VerifyOrReturn(mFeatureFlags.Has(Feature::kWiFiNetworkInterface) || mFeatureFlags.Has(Feature::kThreadNetworkInterface));
         HandleCommand<Commands::ConnectNetwork::DecodableType>(
             ctxt, [this](HandlerContext & ctx, const auto & req) { HandleConnectNetwork(ctx, req); });
         return;
 
     case Commands::ReorderNetwork::Id:
-        VerifyOrReturn(mFeatureFlags.Has(NetworkCommissioningFeature::kWiFiNetworkInterface) ||
-                       mFeatureFlags.Has(NetworkCommissioningFeature::kThreadNetworkInterface));
+        VerifyOrReturn(mFeatureFlags.Has(Feature::kWiFiNetworkInterface) || mFeatureFlags.Has(Feature::kThreadNetworkInterface));
         HandleCommand<Commands::ReorderNetwork::DecodableType>(
             ctxt, [this](HandlerContext & ctx, const auto & req) { HandleReorderNetwork(ctx, req); });
         return;
@@ -248,7 +244,7 @@ void Instance::OnNetworkingStatusChange(NetworkCommissioning::Status aCommission
 void Instance::HandleScanNetworks(HandlerContext & ctx, const Commands::ScanNetworks::DecodableType & req)
 {
     MATTER_TRACE_EVENT_SCOPE("HandleScanNetwork", "NetworkCommissioning");
-    if (mFeatureFlags.Has(NetworkCommissioningFeature::kWiFiNetworkInterface))
+    if (mFeatureFlags.Has(Feature::kWiFiNetworkInterface))
     {
         ByteSpan ssid;
         if (req.ssid.HasValue())
@@ -275,7 +271,7 @@ void Instance::HandleScanNetworks(HandlerContext & ctx, const Commands::ScanNetw
         ctx.mCommandHandler.FlushAcksRightAwayOnSlowCommand();
         mpDriver.Get<WiFiDriver *>()->ScanNetworks(ssid, this);
     }
-    else if (mFeatureFlags.Has(NetworkCommissioningFeature::kThreadNetworkInterface))
+    else if (mFeatureFlags.Has(Feature::kThreadNetworkInterface))
     {
         mCurrentOperationBreadcrumb = req.breadcrumb;
         mAsyncCommandHandle         = CommandHandler::Handle(&ctx.mCommandHandler);
@@ -537,16 +533,14 @@ void Instance::OnFinished(Status status, CharSpan debugText, ThreadScanResponseI
                       ConcreteCommandPath(mPath.mEndpointId, NetworkCommissioning::Id, Commands::ScanNetworksResponse::Id)));
     VerifyOrExit((writer = commandHandle->GetCommandDataIBTLVWriter()) != nullptr, err = CHIP_ERROR_INCORRECT_STATE);
 
-    SuccessOrExit(
-        err = writer->Put(TLV::ContextTag(to_underlying(Commands::ScanNetworksResponse::Fields::kNetworkingStatus)), status));
+    SuccessOrExit(err = writer->Put(TLV::ContextTag(Commands::ScanNetworksResponse::Fields::kNetworkingStatus), status));
     if (debugText.size() != 0)
     {
-        SuccessOrExit(err = DataModel::Encode(
-                          *writer, TLV::ContextTag(to_underlying(Commands::ScanNetworksResponse::Fields::kDebugText)), debugText));
+        SuccessOrExit(
+            err = DataModel::Encode(*writer, TLV::ContextTag(Commands::ScanNetworksResponse::Fields::kDebugText), debugText));
     }
-    SuccessOrExit(
-        err = writer->StartContainer(TLV::ContextTag(to_underlying(Commands::ScanNetworksResponse::Fields::kThreadScanResults)),
-                                     TLV::TLVType::kTLVType_Array, listContainerType));
+    SuccessOrExit(err = writer->StartContainer(TLV::ContextTag(Commands::ScanNetworksResponse::Fields::kThreadScanResults),
+                                               TLV::TLVType::kTLVType_Array, listContainerType));
 
     VerifyOrExit(scanResponseArray.Alloc(chip::min(networks->Count(), kMaxNetworksInScanResponse)), err = CHIP_ERROR_NO_MEMORY);
     for (; networks != nullptr && networks->Next(scanResponse);)
@@ -646,16 +640,14 @@ void Instance::OnFinished(Status status, CharSpan debugText, WiFiScanResponseIte
                       ConcreteCommandPath(mPath.mEndpointId, NetworkCommissioning::Id, Commands::ScanNetworksResponse::Id)));
     VerifyOrExit((writer = commandHandle->GetCommandDataIBTLVWriter()) != nullptr, err = CHIP_ERROR_INCORRECT_STATE);
 
-    SuccessOrExit(
-        err = writer->Put(TLV::ContextTag(to_underlying(Commands::ScanNetworksResponse::Fields::kNetworkingStatus)), status));
+    SuccessOrExit(err = writer->Put(TLV::ContextTag(Commands::ScanNetworksResponse::Fields::kNetworkingStatus), status));
     if (debugText.size() != 0)
     {
-        SuccessOrExit(err = DataModel::Encode(
-                          *writer, TLV::ContextTag(to_underlying(Commands::ScanNetworksResponse::Fields::kDebugText)), debugText));
+        SuccessOrExit(
+            err = DataModel::Encode(*writer, TLV::ContextTag(Commands::ScanNetworksResponse::Fields::kDebugText), debugText));
     }
-    SuccessOrExit(
-        err = writer->StartContainer(TLV::ContextTag(to_underlying(Commands::ScanNetworksResponse::Fields::kWiFiScanResults)),
-                                     TLV::TLVType::kTLVType_Array, listContainerType));
+    SuccessOrExit(err = writer->StartContainer(TLV::ContextTag(Commands::ScanNetworksResponse::Fields::kWiFiScanResults),
+                                               TLV::TLVType::kTLVType_Array, listContainerType));
 
     for (; networks != nullptr && networks->Next(scanResponse) && networksEncoded < kMaxNetworksInScanResponse; networksEncoded++)
     {
@@ -729,7 +721,7 @@ CHIP_ERROR Instance::EnumerateAcceptedCommands(const ConcreteClusterPath & clust
         ScanNetworks::Id, AddOrUpdateThreadNetwork::Id, RemoveNetwork::Id, ConnectNetwork::Id, ReorderNetwork::Id,
     };
 
-    if (mFeatureFlags.Has(NetworkCommissioningFeature::kThreadNetworkInterface))
+    if (mFeatureFlags.Has(Feature::kThreadNetworkInterface))
     {
         for (const auto & cmd : acceptedCommandsListThread)
         {
@@ -742,7 +734,7 @@ CHIP_ERROR Instance::EnumerateAcceptedCommands(const ConcreteClusterPath & clust
         return CHIP_NO_ERROR;
     }
 
-    if (mFeatureFlags.Has(NetworkCommissioningFeature::kWiFiNetworkInterface))
+    if (mFeatureFlags.Has(Feature::kWiFiNetworkInterface))
     {
         for (const auto & cmd : acceptedCommandsListWiFi)
         {
@@ -765,8 +757,7 @@ CHIP_ERROR Instance::EnumerateGeneratedCommands(const ConcreteClusterPath & clus
     constexpr CommandId generatedCommandsListWireless[] = { ScanNetworksResponse::Id, NetworkConfigResponse::Id,
                                                             ConnectNetworkResponse::Id };
 
-    if (mFeatureFlags.HasAny(NetworkCommissioningFeature::kWiFiNetworkInterface,
-                             NetworkCommissioningFeature::kThreadNetworkInterface))
+    if (mFeatureFlags.HasAny(Feature::kWiFiNetworkInterface, Feature::kThreadNetworkInterface))
     {
         for (const auto & cmd : generatedCommandsListWireless)
         {
@@ -802,46 +793,6 @@ DeviceLayer::NetworkCommissioning::NetworkIterator * NullNetworkDriver::GetNetwo
 } // namespace Clusters
 } // namespace app
 } // namespace chip
-
-// These functions are ember interfaces, they should never be implemented since all network commissioning cluster functions are
-// implemented in NetworkCommissioning::Instance.
-bool emberAfNetworkCommissioningClusterAddOrUpdateThreadNetworkCallback(
-    CommandHandler * commandObj, const ConcreteCommandPath & commandPath,
-    const Commands::AddOrUpdateThreadNetwork::DecodableType & commandData)
-{
-    return false;
-}
-
-bool emberAfNetworkCommissioningClusterAddOrUpdateWiFiNetworkCallback(
-    CommandHandler * commandObj, const ConcreteCommandPath & commandPath,
-    const Commands::AddOrUpdateWiFiNetwork::DecodableType & commandData)
-{
-    return false;
-}
-
-bool emberAfNetworkCommissioningClusterConnectNetworkCallback(CommandHandler * commandObj, const ConcreteCommandPath & commandPath,
-                                                              const Commands::ConnectNetwork::DecodableType & commandData)
-{
-    return false;
-}
-
-bool emberAfNetworkCommissioningClusterRemoveNetworkCallback(CommandHandler * commandObj, const ConcreteCommandPath & commandPath,
-                                                             const Commands::RemoveNetwork::DecodableType & commandData)
-{
-    return false;
-}
-
-bool emberAfNetworkCommissioningClusterScanNetworksCallback(CommandHandler * commandObj, const ConcreteCommandPath & commandPath,
-                                                            const Commands::ScanNetworks::DecodableType & commandData)
-{
-    return false;
-}
-
-bool emberAfNetworkCommissioningClusterReorderNetworkCallback(CommandHandler * commandObj, const ConcreteCommandPath & commandPath,
-                                                              const Commands::ReorderNetwork::DecodableType & commandData)
-{
-    return false;
-}
 
 void MatterNetworkCommissioningPluginServerInitCallback()
 {

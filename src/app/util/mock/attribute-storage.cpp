@@ -28,12 +28,12 @@
  *    might be fixed with a mock endpoint-config.h
  */
 
-#include <app-common/zap-generated/att-storage.h>
 #include <app-common/zap-generated/attribute-type.h>
 #include <app-common/zap-generated/ids/Attributes.h>
 #include <app/MessageDef/AttributeDataIB.h>
 #include <app/MessageDef/AttributeReportIB.h>
 #include <app/MessageDef/AttributeStatusIB.h>
+#include <app/att-storage.h>
 #include <app/util/mock/Constants.h>
 
 #include <app/AttributeAccessInterface.h>
@@ -184,6 +184,24 @@ chip::Optional<chip::ClusterId> emberAfGetNthClusterId(chip::EndpointId endpoint
     return chip::Optional<chip::ClusterId>(clusters[clusterIndex[emberAfIndexFromEndpoint(endpoint)] + n]);
 }
 
+// Returns number of clusters put into the passed cluster list
+// for the given endpoint and client/server polarity
+uint8_t emberAfGetClustersFromEndpoint(EndpointId endpoint, ClusterId * clusterList, uint8_t listLen, bool server)
+{
+    uint8_t cluster_count = emberAfClusterCount(endpoint, server);
+    uint8_t i;
+
+    if (cluster_count > listLen)
+    {
+        cluster_count = listLen;
+    }
+    for (i = 0; i < cluster_count; i++)
+    {
+        clusterList[i] = emberAfGetNthClusterId(endpoint, i, server).Value();
+    }
+    return cluster_count;
+}
+
 chip::Optional<chip::AttributeId> emberAfGetServerAttributeIdByIndex(chip::EndpointId endpoint, chip::ClusterId cluster,
                                                                      uint16_t index)
 {
@@ -295,9 +313,8 @@ CHIP_ERROR ReadSingleMockClusterData(FabricIndex aAccessingFabricIndex, const Co
         ReturnErrorOnFailure(attributeStatus.GetError());
         errorStatus.EncodeStatusIB(StatusIB(Protocols::InteractionModel::Status::UnsupportedAttribute));
         ReturnErrorOnFailure(errorStatus.GetError());
-        attributeStatus.EndOfAttributeStatusIB();
-        ReturnErrorOnFailure(attributeStatus.GetError());
-        return attributeReport.EndOfAttributeReportIB().GetError();
+        ReturnErrorOnFailure(attributeStatus.EndOfAttributeStatusIB());
+        return attributeReport.EndOfAttributeReportIB();
     }
 
     // Attribute 4 acts as a large attribute to trigger chunking.
@@ -337,28 +354,27 @@ CHIP_ERROR ReadSingleMockClusterData(FabricIndex aAccessingFabricIndex, const Co
     switch (aPath.mAttributeId)
     {
     case Clusters::Globals::Attributes::ClusterRevision::Id:
-        ReturnErrorOnFailure(writer->Put(TLV::ContextTag(to_underlying(AttributeDataIB::Tag::kData)), mockClusterRevision));
+        ReturnErrorOnFailure(writer->Put(TLV::ContextTag(AttributeDataIB::Tag::kData), mockClusterRevision));
         break;
     case Clusters::Globals::Attributes::FeatureMap::Id:
-        ReturnErrorOnFailure(writer->Put(TLV::ContextTag(to_underlying(AttributeDataIB::Tag::kData)), mockFeatureMap));
+        ReturnErrorOnFailure(writer->Put(TLV::ContextTag(AttributeDataIB::Tag::kData), mockFeatureMap));
         break;
     case MockAttributeId(1):
-        ReturnErrorOnFailure(writer->Put(TLV::ContextTag(to_underlying(AttributeDataIB::Tag::kData)), mockAttribute1));
+        ReturnErrorOnFailure(writer->Put(TLV::ContextTag(AttributeDataIB::Tag::kData), mockAttribute1));
         break;
     case MockAttributeId(2):
-        ReturnErrorOnFailure(writer->Put(TLV::ContextTag(to_underlying(AttributeDataIB::Tag::kData)), mockAttribute2));
+        ReturnErrorOnFailure(writer->Put(TLV::ContextTag(AttributeDataIB::Tag::kData), mockAttribute2));
         break;
     case MockAttributeId(3):
-        ReturnErrorOnFailure(writer->Put(TLV::ContextTag(to_underlying(AttributeDataIB::Tag::kData)), mockAttribute3));
+        ReturnErrorOnFailure(writer->Put(TLV::ContextTag(AttributeDataIB::Tag::kData), mockAttribute3));
         break;
     default:
         // The key should found since we have checked above.
         return CHIP_ERROR_KEY_NOT_FOUND;
     }
 
-    attributeData.EndOfAttributeDataIB();
-    ReturnErrorOnFailure(attributeData.GetError());
-    return attributeReport.EndOfAttributeReportIB().GetError();
+    ReturnErrorOnFailure(attributeData.EndOfAttributeDataIB());
+    return attributeReport.EndOfAttributeReportIB();
 }
 
 } // namespace Test

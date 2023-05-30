@@ -27,7 +27,7 @@ from asyncio.futures import Future
 from ctypes import CFUNCTYPE, c_size_t, c_uint8, c_uint16, c_uint32, c_uint64, c_void_p, py_object
 from dataclasses import dataclass, field
 from enum import Enum, unique
-from typing import Any, Callable, Dict, List, Optional, Union
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 import chip.exceptions
 import chip.interaction_model
@@ -47,9 +47,9 @@ class EventTimestampType(Enum):
 
 @unique
 class EventPriority(Enum):
-    DEBUG = 1
-    INFO = 2
-    CRITICAL = 3
+    DEBUG = 0
+    INFO = 1
+    CRITICAL = 2
 
 
 @dataclass
@@ -146,7 +146,7 @@ class TypedAttributePath:
                     break
 
             if (self.ClusterType is None or self.AttributeType is None):
-                raise Exception("Schema not found")
+                raise KeyError(f"No Schema found for Attribute {Path}")
 
         # Next, let's figure out the label.
         for field in self.ClusterType.descriptor.Fields:
@@ -156,7 +156,7 @@ class TypedAttributePath:
             self.AttributeName = field.Label
 
         if (self.AttributeName is None):
-            raise Exception("Schema not found")
+            raise KeyError(f"Unable to resolve name for Attribute {Path}")
 
         self.Path = Path
         self.ClusterId = self.ClusterType.id
@@ -503,6 +503,26 @@ class SubscriptionTransaction:
             lambda: handle.pychip_ReadClient_OverrideLivenessTimeout(self._readTransaction._pReadClient, timeoutMs)
         )
 
+    def GetReportingIntervalsSeconds(self) -> Tuple[int, int]:
+        '''
+        Retrieve the reporting intervals associated with an active subscription. 
+        This should only be called if we're of subscription interaction type and after a subscription has been established.
+        '''
+        handle = chip.native.GetLibraryHandle()
+        handle.pychip_ReadClient_GetReportingIntervals.argtypes = [
+            ctypes.c_void_p, ctypes.POINTER(ctypes.c_uint16), ctypes.POINTER(ctypes.c_uint16)]
+        handle.pychip_ReadClient_GetReportingIntervals.restype = PyChipError
+
+        minIntervalSec = ctypes.c_uint16(0)
+        maxIntervalSec = ctypes.c_uint16(0)
+
+        builtins.chipStack.Call(
+            lambda: handle.pychip_ReadClient_GetReportingIntervals(
+                self._readTransaction._pReadClient, ctypes.pointer(minIntervalSec), ctypes.pointer(maxIntervalSec))
+        ).raise_on_error()
+
+        return minIntervalSec.value, maxIntervalSec.value
+
     def SetResubscriptionAttemptedCallback(self, callback: Callable[[SubscriptionTransaction, int, int], None], isAsync=False):
         '''
         Sets the callback function that gets invoked anytime a re-subscription is attempted. The callback is expected
@@ -515,7 +535,7 @@ class SubscriptionTransaction:
             self._onResubscriptionAttemptedCb = callback
             self._onResubscriptionAttemptedCb_isAsync = isAsync
 
-    def SetResubscriptionSucceededCallback(self, callback: Callback[[SubscriptionTransaction], None], isAsync=False):
+    def SetResubscriptionSucceededCallback(self, callback: Callable[[SubscriptionTransaction], None], isAsync=False):
         '''
         Sets the callback function that gets invoked when a re-subscription attempt succeeds. The callback
         is expected to have the following signature:
@@ -556,6 +576,10 @@ class SubscriptionTransaction:
     @property
     def OnErrorCb(self) -> Callable[[int, SubscriptionTransaction], None]:
         return self._onErrorCb
+
+    @property
+    def subscriptionId(self) -> int:
+        return self._subscriptionId
 
     def Shutdown(self):
         if (self._isDone):
@@ -745,8 +769,14 @@ class AsyncReadTransaction:
 
         if (self._subscription_handler is not None):
             for change in self._changedPathSet:
+                try:
+                    attribute_path = TypedAttributePath(Path=change)
+                except (KeyError, ValueError) as err:
+                    # path could not be resolved into a TypedAttributePath
+                    logging.getLogger(__name__).exception(err)
+                    continue
                 self._subscription_handler.OnAttributeChangeCb(
-                    TypedAttributePath(Path=change), self._subscription_handler)
+                    attribute_path, self._subscription_handler)
 
             # Clear it out once we've notified of all changes in this transaction.
         self._changedPathSet = set()
@@ -856,8 +886,13 @@ def _OnReadAttributeDataCallback(closure, dataVersion: int, endpoint: int, clust
 def _OnReadEventDataCallback(closure, endpoint: int, cluster: int, event: c_uint64, number: int, priority: int, timestamp: int, timestampType: int, data, len, status):
     dataBytes = ctypes.string_at(data, len)
     path = EventPath(ClusterId=cluster, EventId=event)
-    closure.handleEventData(EventHeader(
-        EndpointId=endpoint, ClusterId=cluster, EventId=event, EventNumber=number, Priority=EventPriority(priority), Timestamp=timestamp, TimestampType=EventTimestampType(timestampType)), path, dataBytes[:], status)
+
+    # EventHeader is valid only when successful
+    eventHeader = None
+    if status == chip.interaction_model.Status.Success.value:
+        eventHeader = EventHeader(
+            EndpointId=endpoint, ClusterId=cluster, EventId=event, EventNumber=number, Priority=EventPriority(priority), Timestamp=timestamp, TimestampType=EventTimestampType(timestampType))
+    closure.handleEventData(eventHeader, path, dataBytes[:], status)
 
 
 @_OnSubscriptionEstablishedCallbackFunct
@@ -939,9 +974,9 @@ def WriteAttributes(future: Future, eventLoop, device, attributes: List[Attribut
     res = builtins.chipStack.Call(
         lambda: handle.pychip_WriteClient_WriteAttributes(
             ctypes.py_object(transaction), device,
-            ctypes.c_uint16(0 if timedRequestTimeoutMs is None else timedRequestTimeoutMs),
-            ctypes.c_uint16(0 if interactionTimeoutMs is None else interactionTimeoutMs),
-            ctypes.c_uint16(0 if busyWaitMs is None else busyWaitMs),
+            ctypes.c_size_t(0 if timedRequestTimeoutMs is None else timedRequestTimeoutMs),
+            ctypes.c_size_t(0 if interactionTimeoutMs is None else interactionTimeoutMs),
+            ctypes.c_size_t(0 if busyWaitMs is None else busyWaitMs),
             ctypes.c_size_t(len(attributes)), *writeargs)
     )
     if not res.is_success:
@@ -949,10 +984,36 @@ def WriteAttributes(future: Future, eventLoop, device, attributes: List[Attribut
     return res
 
 
+def WriteGroupAttributes(groupId: int, devCtrl: c_void_p, attributes: List[AttributeWriteRequest], busyWaitMs: Union[None, int] = None) -> PyChipError:
+    handle = chip.native.GetLibraryHandle()
+
+    writeargs = []
+    for attr in attributes:
+        path = chip.interaction_model.AttributePathIBstruct.parse(
+            b'\x00' * chip.interaction_model.AttributePathIBstruct.sizeof())
+        path.EndpointId = attr.EndpointId
+        path.ClusterId = attr.Attribute.cluster_id
+        path.AttributeId = attr.Attribute.attribute_id
+        path.DataVersion = attr.DataVersion
+        path.HasDataVersion = attr.HasDataVersion
+        path = chip.interaction_model.AttributePathIBstruct.build(path)
+        tlv = attr.Attribute.ToTLV(None, attr.Data)
+        writeargs.append(ctypes.c_char_p(path))
+        writeargs.append(ctypes.c_char_p(bytes(tlv)))
+        writeargs.append(ctypes.c_int(len(tlv)))
+
+    return builtins.chipStack.Call(
+        lambda: handle.pychip_WriteClient_WriteGroupAttributes(
+            ctypes.c_size_t(groupId), devCtrl,
+            ctypes.c_size_t(0 if busyWaitMs is None else busyWaitMs),
+            ctypes.c_size_t(len(attributes)), *writeargs)
+    )
+
+
 # This struct matches the PyReadAttributeParams in attribute.cpp, for passing various params together.
 _ReadParams = construct.Struct(
-    "MinInterval" / construct.Int32ul,
-    "MaxInterval" / construct.Int32ul,
+    "MinInterval" / construct.Int16ul,
+    "MaxInterval" / construct.Int16ul,
     "IsSubscription" / construct.Flag,
     "IsFabricFiltered" / construct.Flag,
     "KeepSubscriptions" / construct.Flag,
@@ -1023,10 +1084,6 @@ def Read(future: Future, eventLoop, device, devCtrl, attributes: List[AttributeP
             path = chip.interaction_model.EventPathIBstruct.build(path)
             readargs.append(ctypes.c_char_p(path))
 
-    ctypes.pythonapi.Py_IncRef(ctypes.py_object(transaction))
-    minInterval = 0
-    maxInterval = 0
-
     readClientObj = ctypes.POINTER(c_void_p)()
     readCallbackObj = ctypes.POINTER(c_void_p)()
 
@@ -1081,6 +1138,19 @@ def Init():
         setter = chip.native.NativeLibraryHandleMethodArguments(handle)
 
         handle.pychip_WriteClient_WriteAttributes.restype = PyChipError
+        handle.pychip_WriteClient_WriteGroupAttributes.restype = PyChipError
+
+        # Both WriteAttributes and WriteGroupAttributes are variadic functions. As per ctype documentation
+        # https://docs.python.org/3/library/ctypes.html#calling-varadic-functions, it is critical that we
+        # specify the argtypes attribute for the regular, non-variadic, function arguments for this to work
+        # on ARM64 for Apple Platforms.
+        # TODO We could move away from a variadic function to one where we provide a vector of the
+        # attribute information we want written using a vector. This possibility was not implemented at the
+        # time where simply specified the argtypes, because of time constraints. This solution was quicker
+        # to fix the crash on ARM64 Apple platforms without a refactor.
+        handle.pychip_WriteClient_WriteAttributes.argtypes = [py_object, c_void_p, c_size_t, c_size_t, c_size_t, c_size_t]
+        handle.pychip_WriteClient_WriteGroupAttributes.argtypes = [c_size_t, c_void_p, c_size_t, c_size_t]
+
         setter.Set('pychip_WriteClient_InitCallbacks', None, [
                    _OnWriteResponseCallbackFunct, _OnWriteErrorCallbackFunct, _OnWriteDoneCallbackFunct])
         handle.pychip_ReadClient_Read.restype = PyChipError

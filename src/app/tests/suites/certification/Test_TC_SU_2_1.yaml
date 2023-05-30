@@ -26,7 +26,7 @@ config:
 tests:
     - label: "DUT sends a QueryImage command to the TH/OTA-P"
       verification: |
-          ./chip-tool otasoftwareupdaterequestor announce-ota-provider 0xDEADBEEF 0 0 0 0x1234567890 0
+          ./chip-tool otasoftwareupdaterequestor announce-otaprovider 0xDEADBEEF 0 0 0 0x1234567890 0
 
           where 0x1234567890 is OTA Requestor node ID and 0xDEADBEEF is OTA Provider node ID
 
@@ -44,7 +44,7 @@ tests:
           [1645743053317] [97806:20280749] CHIP: [ZCL] OTA Provider received QueryImage
           [1645743053317] [97806:20280749] CHIP: [ZCL]   VendorID: 0xfff1
           [1645743053317] [97806:20280749] CHIP: [ZCL]   ProductID: 32769
-          [1645743053317] [97806:20280749] CHIP: [ZCL]   SoftwareVersion: 0
+          [1645743053317] [97806:20280749] CHIP: [ZCL]   SoftwareVersion: 2
           [1645743053317] [97806:20280749] CHIP: [ZCL]   ProtocolsSupported: [
           [1645743053317] [97806:20280749] CHIP: [ZCL]     0
           [1645743053317] [97806:20280749] CHIP: [ZCL]   ]
@@ -54,13 +54,13 @@ tests:
       disabled: true
 
     - label:
-          "DUT sends a QueryImage command to the TH/OTA-P. Wait for 2 minute."
+          "DUT sends a QueryImage command to the TH/OTA-P. Wait for 2 minutes."
       verification: |
           Run the OTA Provider App using the command:
 
           ./chip-ota-provider-app --discriminator ${PROVIDER_LONG_DISCRIMINATOR} --secured-device-port ${PROVIDER_UDP_PORT} --KVS ${KVS_STORE_LOCATION} --filepath ${SW_IMAGE_FILE} -q busy
 
-          ./chip-tool otasoftwareupdaterequestor announce-ota-provider 0xDEADBEEF 0 1 0 0x1234567890 0
+          ./chip-tool otasoftwareupdaterequestor announce-otaprovider 0xDEADBEEF 0 1 0 0x1234567890 0
 
           where 0x1234567890 is OTA Requestor node ID and 0xDEADBEEF is OTA Provider node ID
 
@@ -70,7 +70,7 @@ tests:
     - label:
           "TH2/Administrator sends an AnnounceOTAProvider command to the DUT."
       verification: |
-          ./chip-tool otasoftwareupdaterequestor announce-ota-provider 0xDEADBEEF 0 1 0 0x1234567890 0
+          ./chip-tool otasoftwareupdaterequestor announce-otaprovider 0xDEADBEEF 0 1 0 0x1234567890 0
 
           where 0x1234567890 is OTA Requestor node ID and 0xDEADBEEF is OTA Provider node ID
 
@@ -79,7 +79,7 @@ tests:
           [1645743053317] [97806:20280749] CHIP: [ZCL] OTA Provider received QueryImage
           [1645743053317] [97806:20280749] CHIP: [ZCL]   VendorID: 0xfff1
           [1645743053317] [97806:20280749] CHIP: [ZCL]   ProductID: 32769
-          [1645743053317] [97806:20280749] CHIP: [ZCL]   SoftwareVersion: 0
+          [1645743053317] [97806:20280749] CHIP: [ZCL]   SoftwareVersion: 2
           [1645743053317] [97806:20280749] CHIP: [ZCL]   ProtocolsSupported: [
           [1645743053317] [97806:20280749] CHIP: [ZCL]     0
           [1645743053317] [97806:20280749] CHIP: [ZCL]   ]

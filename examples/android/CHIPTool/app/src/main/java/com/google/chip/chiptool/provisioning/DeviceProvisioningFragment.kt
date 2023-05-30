@@ -45,7 +45,6 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Runnable
 import kotlinx.coroutines.launch
-import java.lang.IllegalArgumentException
 
 @ExperimentalCoroutinesApi
 class DeviceProvisioningFragment : Fragment() {
@@ -61,6 +60,8 @@ class DeviceProvisioningFragment : Fragment() {
 
   private lateinit var scope: CoroutineScope
 
+  private var dialog: AlertDialog? = null
+
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
     deviceController = ChipClient.getDeviceController(requireContext())
@@ -74,7 +75,7 @@ class DeviceProvisioningFragment : Fragment() {
     scope = viewLifecycleOwner.lifecycleScope
     deviceInfo = checkNotNull(requireArguments().getParcelable(ARG_DEVICE_INFO))
     
-    return inflater.inflate(R.layout.single_fragment_container, container, false).apply {
+    return inflater.inflate(R.layout.barcode_fragment, container, false).apply {
       if (savedInstanceState == null) {
         if (deviceInfo.ipAddress != null) {
           pairDeviceWithAddress()
@@ -88,6 +89,7 @@ class DeviceProvisioningFragment : Fragment() {
   override fun onStop() {
     super.onStop()
     gatt = null
+    dialog = null
   }
 
   override fun onDestroy() {
@@ -105,7 +107,7 @@ class DeviceProvisioningFragment : Fragment() {
 
   private fun setAttestationDelegate() {
     deviceController.setDeviceAttestationDelegate(DEVICE_ATTESTATION_FAILED_TIMEOUT
-    ) { devicePtr, attestationInfo, errorCode ->
+    ) { devicePtr, _, errorCode ->
       Log.i(TAG, "Device attestation errorCode: $errorCode, " +
               "Look at 'src/credentials/attestation_verifier/DeviceAttestationVerifier.h' " +
               "AttestationVerificationResult enum to understand the errors")
@@ -121,7 +123,11 @@ class DeviceProvisioningFragment : Fragment() {
       }
 
       activity.runOnUiThread(Runnable {
-        val dialog = AlertDialog.Builder(activity)
+        if (dialog != null && dialog?.isShowing == true) {
+          Log.d(TAG, "dialog is already showing")
+          return@Runnable
+        }
+        dialog = AlertDialog.Builder(activity)
           .setPositiveButton("Continue",
               DialogInterface.OnClickListener { dialog, id ->
                 deviceController.continueCommissioning(devicePtr, true)
@@ -132,9 +138,7 @@ class DeviceProvisioningFragment : Fragment() {
               })
           .setTitle("Device Attestation")
           .setMessage("Device Attestation failed for device under commissioning. Do you wish to continue pairing?")
-          .create()
-
-        dialog.show()
+          .show()
       })
     }
   }
@@ -170,7 +174,7 @@ class DeviceProvisioningFragment : Fragment() {
         R.string.rendezvous_over_ble_scanning_text,
         deviceInfo.discriminator.toString()
       )
-      val device = bluetoothManager.getBluetoothDevice(requireContext(), deviceInfo.discriminator) ?: run {
+      val device = bluetoothManager.getBluetoothDevice(requireContext(), deviceInfo.discriminator, deviceInfo.isShortDiscriminator) ?: run {
         showMessage(R.string.rendezvous_over_ble_scanning_failed_text)
         return@launch
       }
@@ -231,6 +235,8 @@ class DeviceProvisioningFragment : Fragment() {
           ?.onCommissioningComplete(0)
       } else {
         showMessage(R.string.rendezvous_over_ble_pairing_failure_text)
+        FragmentUtil.getHost(this@DeviceProvisioningFragment, Callback::class.java)
+          ?.onCommissioningComplete(errorCode)
       }
     }
 
@@ -239,6 +245,8 @@ class DeviceProvisioningFragment : Fragment() {
 
       if (code != STATUS_PAIRING_SUCCESS) {
         showMessage(R.string.rendezvous_over_ble_pairing_failure_text)
+        FragmentUtil.getHost(this@DeviceProvisioningFragment, Callback::class.java)
+          ?.onCommissioningComplete(code)
       }
     }
 

@@ -39,7 +39,7 @@ class ProcessingPath:
     and in general to report things like 'this path found but was not handled'.
     """
 
-    def __init__(self, paths: List[str] = None):
+    def __init__(self, paths: Optional[List[str]] = None):
         if paths is None:
             paths = []
         self.paths = paths
@@ -88,7 +88,7 @@ class Context:
         # Map of code -> attribute
         self._global_attributes = {}
 
-    def GetCurrentLocationMeta(self) -> ParseMetaData:
+    def GetCurrentLocationMeta(self) -> Optional[ParseMetaData]:
         if not self.locator:
             return None
 
@@ -109,6 +109,9 @@ class Context:
 
         raise Exception(
             'Global attribute 0x%X (%d) not found. You probably need to load global-attributes.xml' % (code, code))
+
+    def GetGlobalAttributes(self):
+        return [attribute for code, attribute in self._global_attributes.items()]
 
     def AddGlobalAttribute(self, attribute: Attribute):
         # NOTE: this may get added several times as both 'client' and 'server'
@@ -131,8 +134,11 @@ class Context:
             logging.warning(msg)
             self._not_handled.add(path)
 
-    def AddIdlPostProcessor(self, processor: IdlPostProcessor):
-        self._idl_post_processors.append(processor)
+    def AddIdlPostProcessor(self, processor: IdlPostProcessor, has_priority: bool = False):
+        if has_priority:
+            self._idl_post_processors.insert(0, processor)
+        else:
+            self._idl_post_processors.append(processor)
 
     def PostProcess(self, idl: Idl):
         for p in self._idl_post_processors:

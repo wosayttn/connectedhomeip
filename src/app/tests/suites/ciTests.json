@@ -37,7 +37,9 @@
         "Test_TC_CC_7_2",
         "Test_TC_CC_7_3",
         "Test_TC_CC_7_4",
-        "Test_TC_CC_8_1"
+        "Test_TC_CC_8_1",
+        "TestColorControl_9_1",
+        "TestColorControl_9_2"
     ],
     "DeviceManagement": [
         "Test_TC_OPCREDS_1_2",
@@ -101,11 +103,9 @@
         "Test_TC_MEDIAPLAYBACK_1_7",
         "Test_TC_AUDIOOUTPUT_1_8",
         "Test_TC_TGTNAV_1_9",
-        "Test_TC_TGTNAV_8_2",
         "Test_TC_APBSC_1_10",
         "Test_TC_CONTENTLAUNCHER_1_11",
         "Test_TC_ALOGIN_1_12",
-        "Test_TC_ALOGIN_12_1",
         "Test_TC_LOWPOWER_2_1",
         "Test_TC_KEYPADINPUT_3_2",
         "Test_TC_KEYPADINPUT_3_3",
@@ -118,7 +118,6 @@
         "Test_TC_MEDIAINPUT_3_11",
         "Test_TC_MEDIAINPUT_3_12",
         "Test_TC_MEDIAINPUT_3_13",
-        "Test_TC_WAKEONLAN_4_1",
         "Test_TC_CHANNEL_5_1",
         "Test_TC_CHANNEL_5_2",
         "Test_TC_CHANNEL_5_3",
@@ -130,7 +129,9 @@
         "Test_TC_AUDIOOUTPUT_7_2",
         "Test_TC_TGTNAV_8_1",
         "Test_TC_APBSC_9_1",
-        "Test_TC_CONTENTLAUNCHER_10_1"
+        "Test_TC_CONTENTLAUNCHER_10_1",
+        "Test_TC_WAKEONLAN_4_1",
+        "Test_TC_ALOGIN_12_1"
     ],
     "ModeSelect": ["Test_TC_MOD_1_1"],
     "MultipleFabrics": [],
@@ -176,6 +177,7 @@
         "Test_TC_DGTHREAD_2_3",
         "Test_TC_DGTHREAD_2_4"
     ],
+    "TimeSynchronization": ["Test_TC_TIMESYNC_1_1"],
     "WiFiNetworkDiagnostics": [
         "Test_TC_DGWIFI_1_1",
         "Test_TC_DGWIFI_2_1",
@@ -241,8 +243,7 @@
         "TestAccessControlConstraints",
         "TestLevelControlWithOnOffDependency",
         "TestCommissioningWindow",
-        "TestCommissionerNodeId",
-        "TestClientMonitoringCluster"
+        "TestCommissionerNodeId"
     ],
     "MultiAdmin": ["TestMultiAdmin"],
     "SoftwareDiagnostics": ["Test_TC_DGSW_1_1"],
@@ -271,6 +272,7 @@
         "Test_TC_G_1_1",
         "Test_TC_G_2_1"
     ],
+    "Scenes": ["Test_TC_S_1_1"],
     "collection": [
         "AccessControl",
         "AccessControlEnforcement",
@@ -310,6 +312,7 @@
         "Thermostat",
         "ThermostatUserConfiguration",
         "ThreadNetworkDiagnostics",
+        "TimeSynchronization",
         "UserLabel",
         "WiFiNetworkDiagnostics",
         "WindowCovering",

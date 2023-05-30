@@ -21,7 +21,6 @@
 #include "AppEvent.h"
 #include "ButtonHandler.h"
 #include "LEDWidget.h"
-#include <app-common/zap-generated/af-structs.h>
 #include <app-common/zap-generated/attributes/Accessors.h>
 #include <app-common/zap-generated/cluster-objects.h>
 
@@ -65,6 +64,7 @@ using chip::DeviceLayer::OTAImageProcessorImpl;
 using chip::System::Layer;
 
 using namespace ::chip;
+using namespace ::chip::app;
 using namespace chip::TLV;
 using namespace ::chip::Credentials;
 using namespace ::chip::DeviceLayer;
@@ -109,6 +109,7 @@ OTAImageProcessorImpl gImageProcessor;
 } // namespace
 
 using namespace ::chip;
+using namespace ::chip::app;
 using namespace chip::TLV;
 using namespace ::chip::Credentials;
 using namespace ::chip::DeviceLayer;
@@ -142,7 +143,7 @@ static Identify gIdentify1 = {
     chip::EndpointId{ 1 },
     OnIdentifyStart,
     OnIdentifyStop,
-    EMBER_ZCL_IDENTIFY_IDENTIFY_TYPE_NONE,
+    Clusters::Identify::IdentifyTypeEnum::kNone,
 };
 
 static void InitServer(intptr_t context)
@@ -284,7 +285,8 @@ void AppTask::lockMgr_Init()
     }
 
     ConfigurationMgr().LogDeviceConfig();
-
+    // Users and credentials should be checked once from flash on boot
+    LockMgr().ReadConfigValues();
     // Print setup info
     PrintOnboardingCodes(chip::RendezvousInformationFlag(chip::RendezvousInformationFlag::kBLE));
 }
@@ -323,9 +325,6 @@ void AppTask::AppTaskMain(void * pvParameter)
 
     sAppTask.Init();
     P6_LOG("App Task started");
-
-    // Users and credentials should be checked once from flash on boot
-    LockMgr().ReadConfigValues();
 
     while (true)
     {

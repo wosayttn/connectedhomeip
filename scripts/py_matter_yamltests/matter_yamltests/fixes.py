@@ -85,7 +85,11 @@ def convert_yaml_octet_string_to_bytes(s: str) -> bytes:
     if s.startswith('hex:'):
         return binascii.unhexlify(s[4:])
 
-    # Step 2: convert non-hex-prefixed to bytes
+    # Step 2: handle explicit "base64:" prefix
+    if s.startswith('base64:'):
+        return binascii.a2b_base64(s[7:])
+
+    # Step 3: convert non-hex-prefixed to bytes
     # TODO(#23669): This does not properly support utf8 octet strings. We mimic
     # javascript codegen behavior. Behavior of javascript is:
     #   * Octet string character >= u+0200 errors out.
@@ -98,7 +102,7 @@ def convert_yaml_octet_string_to_bytes(s: str) -> bytes:
     return binascii.unhexlify(accumulated_hex)
 
 
-def try_add_yaml_support_for_scientific_notation_without_dot(loader):
+def add_yaml_support_for_scientific_notation_without_dot(loader):
     regular_expression = re.compile(u'''^(?:
      [-+]?(?:[0-9][0-9_]*)\\.[0-9_]*(?:[eE][-+]?[0-9]+)?
     |[-+]?(?:[0-9][0-9_]*)(?:[eE][-+]?[0-9]+)
@@ -111,7 +115,6 @@ def try_add_yaml_support_for_scientific_notation_without_dot(loader):
         u'tag:yaml.org,2002:float',
         regular_expression,
         list(u'-+0123456789.'))
-    return loader
 
 
 # This is a gross hack. The previous runner has a some internal states where an identity match one

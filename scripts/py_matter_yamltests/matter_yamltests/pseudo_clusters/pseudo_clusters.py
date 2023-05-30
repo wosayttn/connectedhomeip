@@ -12,18 +12,26 @@
 #    See the License for the specific language governing permissions and
 #    limitations under the License.
 
+from typing import List
+
+from .clusters.commissioner_commands import CommissionerCommands
 from .clusters.delay_commands import DelayCommands
+from .clusters.discovery_commands import DiscoveryCommands
+from .clusters.equality_commands import EqualityCommands
 from .clusters.log_commands import LogCommands
 from .clusters.system_commands import SystemCommands
 from .pseudo_cluster import PseudoCluster
 
 
 class PseudoClusters:
-    def __init__(self, clusters: list[PseudoCluster]):
-        self.__clusters = clusters
+    def __init__(self, clusters: List[PseudoCluster]):
+        self.clusters = clusters
 
     def supports(self, request) -> bool:
         return False if self.__get_command(request) is None else True
+
+    def add(self, cluster: PseudoCluster):
+        self.clusters.append(cluster)
 
     async def execute(self, request):
         status = {'error': 'FAILURE'}
@@ -38,7 +46,7 @@ class PseudoClusters:
         return status, []
 
     def __get_command(self, request):
-        for cluster in self.__clusters:
+        for cluster in self.clusters:
             if request.cluster == cluster.name and getattr(cluster, request.command, None):
                 return getattr(cluster, request.command)
         return None
@@ -46,7 +54,10 @@ class PseudoClusters:
 
 def get_default_pseudo_clusters() -> PseudoClusters:
     clusters = [
+        CommissionerCommands(),
         DelayCommands(),
+        DiscoveryCommands(),
+        EqualityCommands(),
         LogCommands(),
         SystemCommands()
     ]

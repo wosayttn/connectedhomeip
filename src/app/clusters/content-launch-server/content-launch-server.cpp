@@ -28,6 +28,7 @@
 #include <app/data-model/Encode.h>
 #include <app/util/af.h>
 #include <app/util/attribute-storage.h>
+#include <app/util/config.h>
 #include <platform/CHIPDeviceConfig.h>
 
 #include <list>
@@ -39,6 +40,7 @@ using namespace chip::app::Clusters::ContentLauncher;
 #if CHIP_DEVICE_CONFIG_APP_PLATFORM_ENABLED
 using namespace chip::AppPlatform;
 #endif // CHIP_DEVICE_CONFIG_APP_PLATFORM_ENABLED
+using chip::Protocols::InteractionModel::Status;
 
 static constexpr size_t kContentLaunchDelegateTableSize =
     EMBER_AF_CONTENT_LAUNCHER_CLUSTER_SERVER_ENDPOINT_COUNT + CHIP_DEVICE_CONFIG_DYNAMIC_ENDPOINT_COUNT;
@@ -97,7 +99,7 @@ void SetDefaultDelegate(EndpointId endpoint, Delegate * delegate)
     }
 }
 
-bool Delegate::HasFeature(chip::EndpointId endpoint, ContentLauncherFeature feature)
+bool Delegate::HasFeature(chip::EndpointId endpoint, Feature feature)
 {
     uint32_t featureMap = GetFeatureMap(endpoint);
     return (featureMap & chip::to_underlying(feature));
@@ -205,8 +207,7 @@ bool emberAfContentLauncherClusterLaunchContentCallback(CommandHandler * command
 
     Delegate * delegate = GetDelegate(endpoint);
 
-    VerifyOrExit(isDelegateNull(delegate, endpoint) != true &&
-                     delegate->HasFeature(endpoint, ContentLauncherFeature::kContentSearch),
+    VerifyOrExit(isDelegateNull(delegate, endpoint) != true && delegate->HasFeature(endpoint, Feature::kContentSearch),
                  err = CHIP_ERROR_INCORRECT_STATE);
 
     delegate->HandleLaunchContent(responder, decodableParameterList, autoplay, data.HasValue() ? data.Value() : CharSpan());
@@ -220,7 +221,7 @@ exit:
     // If isDelegateNull, no one will call responder, so HasSentResponse will be false
     if (!responder.HasSentResponse())
     {
-        emberAfSendImmediateDefaultResponse(EMBER_ZCL_STATUS_FAILURE);
+        commandObj->AddStatus(commandPath, Status::Failure);
     }
 
     return true;
@@ -239,7 +240,7 @@ bool emberAfContentLauncherClusterLaunchURLCallback(CommandHandler * commandObj,
     app::CommandResponseHelper<Commands::LauncherResponse::Type> responder(commandObj, commandPath);
 
     Delegate * delegate = GetDelegate(endpoint);
-    VerifyOrExit(isDelegateNull(delegate, endpoint) != true && delegate->HasFeature(endpoint, ContentLauncherFeature::kURLPlayback),
+    VerifyOrExit(isDelegateNull(delegate, endpoint) != true && delegate->HasFeature(endpoint, Feature::kURLPlayback),
                  err = CHIP_ERROR_INCORRECT_STATE);
     {
         delegate->HandleLaunchUrl(responder, contentUrl, displayString.HasValue() ? displayString.Value() : CharSpan(),
@@ -256,7 +257,7 @@ exit:
     // If isDelegateNull, no one will call responder, so HasSentResponse will be false
     if (!responder.HasSentResponse())
     {
-        emberAfSendImmediateDefaultResponse(EMBER_ZCL_STATUS_FAILURE);
+        commandObj->AddStatus(commandPath, Status::Failure);
     }
 
     return true;

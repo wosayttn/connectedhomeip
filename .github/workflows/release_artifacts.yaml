@@ -21,6 +21,11 @@ on:
                 description: Release Tag
                 required: true
 
+env:
+    CHIP_NO_LOG_TIMESTAMPS: true
+    # XXX: Workaround for https://github.com/actions/cache/issues/1141
+    SEGMENT_DOWNLOAD_TIMEOUT_MINS: 3
+
 jobs:
     esp32:
         name: ESP32
@@ -29,7 +34,7 @@ jobs:
         runs-on: ubuntu-latest
 
         container:
-            image: connectedhomeip/chip-build-esp32:0.6.35
+            image: connectedhomeip/chip-build-esp32:0.7.3
 
         steps:
             - uses: Wandalen/wretry.action@v1.0.36
@@ -42,9 +47,18 @@ jobs:
                   attempt_limit: 3
                   attempt_delay: 2000
                   ref: "${{ github.event.inputs.releaseTag }}"
+
+            - name: Bootstrap cache
+              uses: actions/cache@v3
+              timeout-minutes: 10
+              with:
+                  key: ${{ runner.os }}-env-${{ hashFiles('scripts/setup/*', 'third_party/pigweed/**') }}
+                  path: |
+                      .environment
+                      build_overrides/pigweed_environment.gni
             - name: Bootstrap
               timeout-minutes: 25
-              run: scripts/build/gn_bootstrap.sh
+              run: bash scripts/bootstrap.sh
             - name: Uploading bootstrap logs
               uses: actions/upload-artifact@v3
               if: ${{ always() && !env.ACT }}
@@ -53,6 +67,7 @@ jobs:
                   path: |
                       .environment/gn_out/.ninja_log
                       .environment/pigweed-venv/*.log
+
             - name: Build
               run: scripts/examples/esp_example.sh all-clusters-app
 
@@ -75,7 +90,7 @@ jobs:
         runs-on: ubuntu-latest
 
         container:
-            image: connectedhomeip/chip-build-efr32:0.6.35
+            image: connectedhomeip/chip-build-efr32:0.7.3
         steps:
             - uses: Wandalen/wretry.action@v1.0.36
               name: Checkout
@@ -87,9 +102,18 @@ jobs:
                   attempt_limit: 3
                   attempt_delay: 2000
                   ref: "${{ github.event.inputs.releaseTag }}"
+
+            - name: Bootstrap cache
+              uses: actions/cache@v3
+              timeout-minutes: 10
+              with:
+                  key: ${{ runner.os }}-env-${{ hashFiles('scripts/setup/*', 'third_party/pigweed/**') }}
+                  path: |
+                      .environment
+                      build_overrides/pigweed_environment.gni
             - name: Bootstrap
               timeout-minutes: 25
-              run: scripts/build/gn_bootstrap.sh
+              run: bash scripts/bootstrap.sh
             - name: Uploading bootstrap logs
               uses: actions/upload-artifact@v3
               if: ${{ always() && !env.ACT }}
@@ -98,8 +122,9 @@ jobs:
                   path: |
                       .environment/gn_out/.ninja_log
                       .environment/pigweed-venv/*.log
+
             - name: Build example EFR32 Lock App
-              run: scripts/examples/gn_efr32_example.sh examples/lock-app/efr32/
+              run: scripts/examples/gn_silabs_example.sh examples/lock-app/efr32/
                   out/lock_app_debug $SILABS_BOARD
 
             - name: Upload artifact

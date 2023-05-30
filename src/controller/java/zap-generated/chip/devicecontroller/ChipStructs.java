@@ -26,10 +26,9 @@ import javax.annotation.Nullable;
 public class ChipStructs {
   public static class ScenesClusterAttributeValuePair {
     public Optional<Long> attributeID;
-    public ArrayList<Object> attributeValue;
+    public Long attributeValue;
 
-    public ScenesClusterAttributeValuePair(
-        Optional<Long> attributeID, ArrayList<Object> attributeValue) {
+    public ScenesClusterAttributeValuePair(Optional<Long> attributeID, Long attributeValue) {
       this.attributeID = attributeID;
       this.attributeValue = attributeValue;
     }
@@ -142,12 +141,12 @@ public class ChipStructs {
     }
   }
 
-  public static class AccessControlClusterTarget {
+  public static class AccessControlClusterAccessControlTargetStruct {
     public @Nullable Long cluster;
     public @Nullable Integer endpoint;
     public @Nullable Long deviceType;
 
-    public AccessControlClusterTarget(
+    public AccessControlClusterAccessControlTargetStruct(
         @Nullable Long cluster, @Nullable Integer endpoint, @Nullable Long deviceType) {
       this.cluster = cluster;
       this.endpoint = endpoint;
@@ -157,7 +156,7 @@ public class ChipStructs {
     @Override
     public String toString() {
       StringBuilder output = new StringBuilder();
-      output.append("AccessControlClusterTarget {\n");
+      output.append("AccessControlClusterAccessControlTargetStruct {\n");
       output.append("\tcluster: ");
       output.append(cluster);
       output.append("\n");
@@ -176,14 +175,14 @@ public class ChipStructs {
     public Integer privilege;
     public Integer authMode;
     public @Nullable ArrayList<Object> subjects;
-    public @Nullable ArrayList<ChipStructs.AccessControlClusterTarget> targets;
+    public @Nullable ArrayList<ChipStructs.AccessControlClusterAccessControlTargetStruct> targets;
     public Integer fabricIndex;
 
     public AccessControlClusterAccessControlEntryStruct(
         Integer privilege,
         Integer authMode,
         @Nullable ArrayList<Object> subjects,
-        @Nullable ArrayList<ChipStructs.AccessControlClusterTarget> targets,
+        @Nullable ArrayList<ChipStructs.AccessControlClusterAccessControlTargetStruct> targets,
         Integer fabricIndex) {
       this.privilege = privilege;
       this.authMode = authMode;
@@ -344,6 +343,31 @@ public class ChipStructs {
       output.append("\n");
       output.append("\tsubscriptionsPerFabric: ");
       output.append(subscriptionsPerFabric);
+      output.append("\n");
+      output.append("}\n");
+      return output.toString();
+    }
+  }
+
+  public static class BasicInformationClusterProductAppearanceStruct {
+    public Integer finish;
+    public @Nullable Integer primaryColor;
+
+    public BasicInformationClusterProductAppearanceStruct(
+        Integer finish, @Nullable Integer primaryColor) {
+      this.finish = finish;
+      this.primaryColor = primaryColor;
+    }
+
+    @Override
+    public String toString() {
+      StringBuilder output = new StringBuilder();
+      output.append("BasicInformationClusterProductAppearanceStruct {\n");
+      output.append("\tfinish: ");
+      output.append(finish);
+      output.append("\n");
+      output.append("\tprimaryColor: ");
+      output.append(primaryColor);
       output.append("\n");
       output.append("}\n");
       return output.toString();
@@ -1004,6 +1028,146 @@ public class ChipStructs {
     }
   }
 
+  public static class TimeSynchronizationClusterDSTOffsetStruct {
+    public Long offset;
+    public Long validStarting;
+    public @Nullable Long validUntil;
+
+    public TimeSynchronizationClusterDSTOffsetStruct(
+        Long offset, Long validStarting, @Nullable Long validUntil) {
+      this.offset = offset;
+      this.validStarting = validStarting;
+      this.validUntil = validUntil;
+    }
+
+    @Override
+    public String toString() {
+      StringBuilder output = new StringBuilder();
+      output.append("TimeSynchronizationClusterDSTOffsetStruct {\n");
+      output.append("\toffset: ");
+      output.append(offset);
+      output.append("\n");
+      output.append("\tvalidStarting: ");
+      output.append(validStarting);
+      output.append("\n");
+      output.append("\tvalidUntil: ");
+      output.append(validUntil);
+      output.append("\n");
+      output.append("}\n");
+      return output.toString();
+    }
+  }
+
+  public static class TimeSynchronizationClusterFabricScopedTrustedTimeSourceStruct {
+    public Long nodeID;
+    public Integer endpoint;
+
+    public TimeSynchronizationClusterFabricScopedTrustedTimeSourceStruct(
+        Long nodeID, Integer endpoint) {
+      this.nodeID = nodeID;
+      this.endpoint = endpoint;
+    }
+
+    @Override
+    public String toString() {
+      StringBuilder output = new StringBuilder();
+      output.append("TimeSynchronizationClusterFabricScopedTrustedTimeSourceStruct {\n");
+      output.append("\tnodeID: ");
+      output.append(nodeID);
+      output.append("\n");
+      output.append("\tendpoint: ");
+      output.append(endpoint);
+      output.append("\n");
+      output.append("}\n");
+      return output.toString();
+    }
+  }
+
+  public static class TimeSynchronizationClusterTimeZoneStruct {
+    public Long offset;
+    public Long validAt;
+    public Optional<String> name;
+
+    public TimeSynchronizationClusterTimeZoneStruct(
+        Long offset, Long validAt, Optional<String> name) {
+      this.offset = offset;
+      this.validAt = validAt;
+      this.name = name;
+    }
+
+    @Override
+    public String toString() {
+      StringBuilder output = new StringBuilder();
+      output.append("TimeSynchronizationClusterTimeZoneStruct {\n");
+      output.append("\toffset: ");
+      output.append(offset);
+      output.append("\n");
+      output.append("\tvalidAt: ");
+      output.append(validAt);
+      output.append("\n");
+      output.append("\tname: ");
+      output.append(name);
+      output.append("\n");
+      output.append("}\n");
+      return output.toString();
+    }
+  }
+
+  public static class TimeSynchronizationClusterTrustedTimeSourceStruct {
+    public Integer fabricIndex;
+    public Long nodeID;
+    public Integer endpoint;
+
+    public TimeSynchronizationClusterTrustedTimeSourceStruct(
+        Integer fabricIndex, Long nodeID, Integer endpoint) {
+      this.fabricIndex = fabricIndex;
+      this.nodeID = nodeID;
+      this.endpoint = endpoint;
+    }
+
+    @Override
+    public String toString() {
+      StringBuilder output = new StringBuilder();
+      output.append("TimeSynchronizationClusterTrustedTimeSourceStruct {\n");
+      output.append("\tfabricIndex: ");
+      output.append(fabricIndex);
+      output.append("\n");
+      output.append("\tnodeID: ");
+      output.append(nodeID);
+      output.append("\n");
+      output.append("\tendpoint: ");
+      output.append(endpoint);
+      output.append("\n");
+      output.append("}\n");
+      return output.toString();
+    }
+  }
+
+  public static class BridgedDeviceBasicInformationClusterProductAppearanceStruct {
+    public Integer finish;
+    public @Nullable Integer primaryColor;
+
+    public BridgedDeviceBasicInformationClusterProductAppearanceStruct(
+        Integer finish, @Nullable Integer primaryColor) {
+      this.finish = finish;
+      this.primaryColor = primaryColor;
+    }
+
+    @Override
+    public String toString() {
+      StringBuilder output = new StringBuilder();
+      output.append("BridgedDeviceBasicInformationClusterProductAppearanceStruct {\n");
+      output.append("\tfinish: ");
+      output.append(finish);
+      output.append("\n");
+      output.append("\tprimaryColor: ");
+      output.append(primaryColor);
+      output.append("\n");
+      output.append("}\n");
+      return output.toString();
+    }
+  }
+
   public static class OperationalCredentialsClusterFabricDescriptorStruct {
     public byte[] rootPublicKey;
     public Integer vendorID;
@@ -1262,6 +1426,41 @@ public class ChipStructs {
     }
   }
 
+  public static class IcdManagementClusterMonitoringRegistrationStruct {
+    public Long checkInNodeID;
+    public Long monitoredSubject;
+    public byte[] key;
+    public Integer fabricIndex;
+
+    public IcdManagementClusterMonitoringRegistrationStruct(
+        Long checkInNodeID, Long monitoredSubject, byte[] key, Integer fabricIndex) {
+      this.checkInNodeID = checkInNodeID;
+      this.monitoredSubject = monitoredSubject;
+      this.key = key;
+      this.fabricIndex = fabricIndex;
+    }
+
+    @Override
+    public String toString() {
+      StringBuilder output = new StringBuilder();
+      output.append("IcdManagementClusterMonitoringRegistrationStruct {\n");
+      output.append("\tcheckInNodeID: ");
+      output.append(checkInNodeID);
+      output.append("\n");
+      output.append("\tmonitoredSubject: ");
+      output.append(monitoredSubject);
+      output.append("\n");
+      output.append("\tkey: ");
+      output.append(Arrays.toString(key));
+      output.append("\n");
+      output.append("\tfabricIndex: ");
+      output.append(fabricIndex);
+      output.append("\n");
+      output.append("}\n");
+      return output.toString();
+    }
+  }
+
   public static class ModeSelectClusterSemanticTagStruct {
     public Integer mfgCode;
     public Integer value;
@@ -1312,6 +1511,87 @@ public class ChipStructs {
       output.append("\n");
       output.append("\tsemanticTags: ");
       output.append(semanticTags);
+      output.append("\n");
+      output.append("}\n");
+      return output.toString();
+    }
+  }
+
+  public static class TemperatureControlClusterTemperatureLevelStruct {
+    public String label;
+    public Integer temperatureLevel;
+
+    public TemperatureControlClusterTemperatureLevelStruct(String label, Integer temperatureLevel) {
+      this.label = label;
+      this.temperatureLevel = temperatureLevel;
+    }
+
+    @Override
+    public String toString() {
+      StringBuilder output = new StringBuilder();
+      output.append("TemperatureControlClusterTemperatureLevelStruct {\n");
+      output.append("\tlabel: ");
+      output.append(label);
+      output.append("\n");
+      output.append("\ttemperatureLevel: ");
+      output.append(temperatureLevel);
+      output.append("\n");
+      output.append("}\n");
+      return output.toString();
+    }
+  }
+
+  public static class OperationalStateClusterErrorStateStruct {
+    public Integer errorStateID;
+    public @Nullable String errorStateLabel;
+    public Optional<String> errorStateDetails;
+
+    public OperationalStateClusterErrorStateStruct(
+        Integer errorStateID,
+        @Nullable String errorStateLabel,
+        Optional<String> errorStateDetails) {
+      this.errorStateID = errorStateID;
+      this.errorStateLabel = errorStateLabel;
+      this.errorStateDetails = errorStateDetails;
+    }
+
+    @Override
+    public String toString() {
+      StringBuilder output = new StringBuilder();
+      output.append("OperationalStateClusterErrorStateStruct {\n");
+      output.append("\terrorStateID: ");
+      output.append(errorStateID);
+      output.append("\n");
+      output.append("\terrorStateLabel: ");
+      output.append(errorStateLabel);
+      output.append("\n");
+      output.append("\terrorStateDetails: ");
+      output.append(errorStateDetails);
+      output.append("\n");
+      output.append("}\n");
+      return output.toString();
+    }
+  }
+
+  public static class OperationalStateClusterOperationalStateStruct {
+    public Integer operationalStateID;
+    public String operationalStateLabel;
+
+    public OperationalStateClusterOperationalStateStruct(
+        Integer operationalStateID, String operationalStateLabel) {
+      this.operationalStateID = operationalStateID;
+      this.operationalStateLabel = operationalStateLabel;
+    }
+
+    @Override
+    public String toString() {
+      StringBuilder output = new StringBuilder();
+      output.append("OperationalStateClusterOperationalStateStruct {\n");
+      output.append("\toperationalStateID: ");
+      output.append(operationalStateID);
+      output.append("\n");
+      output.append("\toperationalStateLabel: ");
+      output.append(operationalStateLabel);
       output.append("\n");
       output.append("}\n");
       return output.toString();
@@ -1824,36 +2104,6 @@ public class ChipStructs {
       output.append("\n");
       output.append("\tapplicationID: ");
       output.append(applicationID);
-      output.append("\n");
-      output.append("}\n");
-      return output.toString();
-    }
-  }
-
-  public static class ClientMonitoringClusterMonitoringRegistration {
-    public Long clientNodeId;
-    public Long ICid;
-    public Integer fabricIndex;
-
-    public ClientMonitoringClusterMonitoringRegistration(
-        Long clientNodeId, Long ICid, Integer fabricIndex) {
-      this.clientNodeId = clientNodeId;
-      this.ICid = ICid;
-      this.fabricIndex = fabricIndex;
-    }
-
-    @Override
-    public String toString() {
-      StringBuilder output = new StringBuilder();
-      output.append("ClientMonitoringClusterMonitoringRegistration {\n");
-      output.append("\tclientNodeId: ");
-      output.append(clientNodeId);
-      output.append("\n");
-      output.append("\tICid: ");
-      output.append(ICid);
-      output.append("\n");
-      output.append("\tfabricIndex: ");
-      output.append(fabricIndex);
       output.append("\n");
       output.append("}\n");
       return output.toString();

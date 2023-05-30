@@ -19,6 +19,7 @@
 #include "TvApp-JNI.h"
 #include <app-common/zap-generated/attributes/Accessors.h>
 #include <app-common/zap-generated/ids/Clusters.h>
+#include <app/util/config.h>
 #include <cstdlib>
 #include <jni.h>
 #include <lib/core/CHIPSafeCasts.h>
@@ -329,7 +330,7 @@ exit:
     return static_cast<bool>(ret);
 }
 
-bool ChannelManager::HandleSkipChannel(const uint16_t & count)
+bool ChannelManager::HandleSkipChannel(const int16_t & count)
 {
     jboolean ret = JNI_FALSE;
     JNIEnv * env = JniReferences::GetInstance().GetEnvForCurrentThread();

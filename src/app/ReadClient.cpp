@@ -31,6 +31,7 @@
 #include <lib/core/TLVTypes.h>
 #include <lib/support/FibonacciUtils.h>
 #include <messaging/ReliableMessageMgr.h>
+#include <messaging/ReliableMessageProtocolConfig.h>
 
 namespace chip {
 namespace app {
@@ -247,7 +248,6 @@ CHIP_ERROR ReadClient::SendRequest(ReadPrepareParams & aReadPrepareParams)
 
 CHIP_ERROR ReadClient::SendReadRequest(ReadPrepareParams & aReadPrepareParams)
 {
-    // TODO: SendRequest parameter is too long, need to have the structure to represent it
     CHIP_ERROR err = CHIP_NO_ERROR;
 
     ChipLogDetail(DataManagement, "%s ReadClient[%p]: Sending Read Request", __func__, this);
@@ -306,14 +306,14 @@ CHIP_ERROR ReadClient::SendReadRequest(ReadPrepareParams & aReadPrepareParams)
     ReturnErrorOnFailure(dataVersionFilterListBuilder.GetWriter()->UnreserveBuffer(kReservedSizeForTLVEncodingOverhead));
     if (encodedDataVersionList)
     {
-        ReturnErrorOnFailure(dataVersionFilterListBuilder.EndOfDataVersionFilterIBs().GetError());
+        ReturnErrorOnFailure(dataVersionFilterListBuilder.EndOfDataVersionFilterIBs());
     }
     else
     {
         request.Rollback(backup);
     }
 
-    ReturnErrorOnFailure(request.EndOfReadRequestMessage().GetError());
+    ReturnErrorOnFailure(request.EndOfReadRequestMessage());
     ReturnErrorOnFailure(writer.Finalize(&msgBuf));
 
     VerifyOrReturnError(aReadPrepareParams.mSessionHolder, CHIP_ERROR_MISSING_SECURE_SESSION);
@@ -345,14 +345,13 @@ CHIP_ERROR ReadClient::GenerateEventPaths(EventPathIBs::Builder & aEventPathsBui
 {
     for (auto & event : aEventPaths)
     {
-        VerifyOrReturnError(event.IsValidEventPath(), CHIP_ERROR_IM_MALFORMED_ATTRIBUTE_PATH_IB);
+        VerifyOrReturnError(event.IsValidEventPath(), CHIP_ERROR_IM_MALFORMED_EVENT_PATH_IB);
         EventPathIB::Builder & path = aEventPathsBuilder.CreatePath();
         ReturnErrorOnFailure(aEventPathsBuilder.GetError());
         ReturnErrorOnFailure(path.Encode(event));
     }
 
-    aEventPathsBuilder.EndOfEventPaths();
-    return aEventPathsBuilder.GetError();
+    return aEventPathsBuilder.EndOfEventPaths();
 }
 
 CHIP_ERROR ReadClient::GenerateAttributePaths(AttributePathIBs::Builder & aAttributePathIBsBuilder,
@@ -366,8 +365,7 @@ CHIP_ERROR ReadClient::GenerateAttributePaths(AttributePathIBs::Builder & aAttri
         ReturnErrorOnFailure(path.Encode(attribute));
     }
 
-    aAttributePathIBsBuilder.EndOfAttributePathIBs();
-    return aAttributePathIBsBuilder.GetError();
+    return aAttributePathIBsBuilder.EndOfAttributePathIBs();
 }
 
 CHIP_ERROR ReadClient::BuildDataVersionFilterList(DataVersionFilterIBs::Builder & aDataVersionFilterIBsBuilder,
@@ -399,9 +397,9 @@ CHIP_ERROR ReadClient::BuildDataVersionFilterList(DataVersionFilterIBs::Builder 
         ReturnErrorOnFailure(aDataVersionFilterIBsBuilder.GetError());
         ClusterPathIB::Builder & path = filterIB.CreatePath();
         ReturnErrorOnFailure(filterIB.GetError());
-        ReturnErrorOnFailure(path.Endpoint(filter.mEndpointId).Cluster(filter.mClusterId).EndOfClusterPathIB().GetError());
+        ReturnErrorOnFailure(path.Endpoint(filter.mEndpointId).Cluster(filter.mClusterId).EndOfClusterPathIB());
         VerifyOrReturnError(filter.mDataVersion.HasValue(), CHIP_ERROR_INVALID_ARGUMENT);
-        ReturnErrorOnFailure(filterIB.DataVersion(filter.mDataVersion.Value()).EndOfDataVersionFilterIB().GetError());
+        ReturnErrorOnFailure(filterIB.DataVersion(filter.mDataVersion.Value()).EndOfDataVersionFilterIB());
         aEncodedDataVersionList = true;
     }
     return CHIP_NO_ERROR;
@@ -639,13 +637,7 @@ CHIP_ERROR ReadClient::ProcessAttributePath(AttributePathIB::Parser & aAttribute
 {
     CHIP_ERROR err = CHIP_NO_ERROR;
     // The ReportData must contain a concrete attribute path
-    err = aAttributePathParser.GetEndpoint(&(aAttributePath.mEndpointId));
-    VerifyOrReturnError(err == CHIP_NO_ERROR, CHIP_ERROR_IM_MALFORMED_ATTRIBUTE_PATH_IB);
-    err = aAttributePathParser.GetCluster(&(aAttributePath.mClusterId));
-    VerifyOrReturnError(err == CHIP_NO_ERROR, CHIP_ERROR_IM_MALFORMED_ATTRIBUTE_PATH_IB);
-    err = aAttributePathParser.GetAttribute(&(aAttributePath.mAttributeId));
-    VerifyOrReturnError(err == CHIP_NO_ERROR, CHIP_ERROR_IM_MALFORMED_ATTRIBUTE_PATH_IB);
-    err = aAttributePathParser.GetListIndex(aAttributePath);
+    err = aAttributePathParser.GetConcreteAttributePath(aAttributePath);
     VerifyOrReturnError(err == CHIP_NO_ERROR, CHIP_ERROR_IM_MALFORMED_ATTRIBUTE_PATH_IB);
     return CHIP_NO_ERROR;
 }
@@ -794,33 +786,12 @@ CHIP_ERROR ReadClient::RefreshLivenessCheckTimer()
 {
     CHIP_ERROR err = CHIP_NO_ERROR;
 
-    VerifyOrReturnError(mState == ClientState::SubscriptionActive, CHIP_ERROR_INCORRECT_STATE);
+    VerifyOrReturnError(IsSubscriptionActive(), CHIP_ERROR_INCORRECT_STATE);
 
     CancelLivenessCheckTimer();
 
     System::Clock::Timeout timeout;
-
-    if (mLivenessTimeoutOverride != System::Clock::kZero)
-    {
-        timeout = mLivenessTimeoutOverride;
-    }
-    else
-    {
-        VerifyOrReturnError(mReadPrepareParams.mSessionHolder, CHIP_ERROR_INCORRECT_STATE);
-
-        //
-        // To calculate the duration we're willing to wait for a report to come to us, we take into account the maximum interval of
-        // the subscription AND the time it takes for the report to make it to us in the worst case. This latter bit involves
-        // computing the Ack timeout from the publisher for the ReportData message being sent to us using our IDLE interval as the
-        // basis for that computation.
-        //
-        // TODO: We need to find a good home for this logic that will correctly compute this based on transport. For now, this will
-        // suffice since we don't use TCP as a transport currently and subscriptions over BLE aren't really a thing.
-        //
-        auto publisherTransmissionTimeout =
-            GetLocalMRPConfig().ValueOr(GetDefaultMRPConfig()).mIdleRetransTimeout * (CHIP_CONFIG_RMP_DEFAULT_MAX_RETRANS + 1);
-        timeout = System::Clock::Seconds16(mMaxInterval) + publisherTransmissionTimeout;
-    }
+    ReturnErrorOnFailure(ComputeLivenessCheckTimerTimeout(&timeout));
 
     // EFR32/MBED/INFINION/K32W's chrono count return long unsigned, but other platform returns unsigned
     ChipLogProgress(
@@ -831,6 +802,37 @@ CHIP_ERROR ReadClient::RefreshLivenessCheckTimer()
         timeout, OnLivenessTimeoutCallback, this);
 
     return err;
+}
+
+CHIP_ERROR ReadClient::ComputeLivenessCheckTimerTimeout(System::Clock::Timeout * aTimeout)
+{
+    if (mLivenessTimeoutOverride != System::Clock::kZero)
+    {
+        *aTimeout = mLivenessTimeoutOverride;
+        return CHIP_NO_ERROR;
+    }
+
+    VerifyOrReturnError(mReadPrepareParams.mSessionHolder, CHIP_ERROR_INCORRECT_STATE);
+
+    //
+    // To calculate the duration we're willing to wait for a report to come to us, we take into account the maximum interval of
+    // the subscription AND the time it takes for the report to make it to us in the worst case. This latter bit involves
+    // computing the Ack timeout from the publisher for the ReportData message being sent to us using our IDLE interval as the
+    // basis for that computation.
+    //
+    // Make sure to use the retransmission computation that includes backoff.  For purposes of that computation, treat us as
+    // active now (since we are right now sending/receiving messages), and use the default "how long are we guaranteed to stay
+    // active" threshold for now.
+    //
+    // TODO: We need to find a good home for this logic that will correctly compute this based on transport. For now, this will
+    // suffice since we don't use TCP as a transport currently and subscriptions over BLE aren't really a thing.
+    //
+    const auto & ourMrpConfig = GetDefaultMRPConfig();
+    auto publisherTransmissionTimeout =
+        GetRetransmissionTimeout(ourMrpConfig.mActiveRetransTimeout, ourMrpConfig.mIdleRetransTimeout,
+                                 System::SystemClock().GetMonotonicTimestamp(), Transport::kMinActiveTime);
+    *aTimeout = System::Clock::Seconds16(mMaxInterval) + publisherTransmissionTimeout;
+    return CHIP_NO_ERROR;
 }
 
 void ReadClient::CancelLivenessCheckTimer()
@@ -1010,14 +1012,14 @@ CHIP_ERROR ReadClient::SendSubscribeRequestImpl(const ReadPrepareParams & aReadP
     ReturnErrorOnFailure(dataVersionFilterListBuilder.GetWriter()->UnreserveBuffer(kReservedSizeForTLVEncodingOverhead));
     if (encodedDataVersionList)
     {
-        ReturnErrorOnFailure(dataVersionFilterListBuilder.EndOfDataVersionFilterIBs().GetError());
+        ReturnErrorOnFailure(dataVersionFilterListBuilder.EndOfDataVersionFilterIBs());
     }
     else
     {
         request.Rollback(backup);
     }
 
-    ReturnErrorOnFailure(request.EndOfSubscribeRequestMessage().GetError());
+    ReturnErrorOnFailure(request.EndOfSubscribeRequestMessage());
     ReturnErrorOnFailure(writer.Finalize(&msgBuf));
 
     VerifyOrReturnError(aReadPrepareParams.mSessionHolder, CHIP_ERROR_MISSING_SECURE_SESSION);
@@ -1094,7 +1096,8 @@ void ReadClient::HandleDeviceConnectionFailure(void * context, const ScopedNodeI
     _this->Close(err);
 }
 
-void ReadClient::OnResubscribeTimerCallback(System::Layer * apSystemLayer, void * apAppState)
+void ReadClient::OnResubscribeTimerCallback(System::Layer * /* If this starts being used, fix callers that pass nullptr */,
+                                            void * apAppState)
 {
     ReadClient * const _this = static_cast<ReadClient *>(apAppState);
     VerifyOrDie(_this != nullptr);
@@ -1173,5 +1176,35 @@ CHIP_ERROR ReadClient::GetMinEventNumber(const ReadPrepareParams & aReadPrepareP
     }
     return CHIP_NO_ERROR;
 }
+
+void ReadClient::TriggerResubscribeIfScheduled(const char * reason)
+{
+    if (!mIsResubscriptionScheduled)
+    {
+        return;
+    }
+
+    ChipLogDetail(DataManagement, "ReadClient[%p] triggering resubscribe, reason: %s", this, reason);
+    CancelResubscribeTimer();
+    OnResubscribeTimerCallback(nullptr, this);
+}
+
+Optional<System::Clock::Timeout> ReadClient::GetSubscriptionTimeout()
+{
+    if (!IsSubscriptionType() || !IsSubscriptionActive())
+    {
+        return NullOptional;
+    }
+
+    System::Clock::Timeout timeout;
+    CHIP_ERROR err = ComputeLivenessCheckTimerTimeout(&timeout);
+    if (err != CHIP_NO_ERROR)
+    {
+        return NullOptional;
+    }
+
+    return MakeOptional(timeout);
+}
+
 } // namespace app
 } // namespace chip

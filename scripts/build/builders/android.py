@@ -81,13 +81,12 @@ class AndroidApp(Enum):
             return "tv-server"
         elif self == AndroidApp.TV_CASTING_APP:
             return "tv-casting"
-        elif self == AndroidApp.JAVA_MATTER_CONTROLLER:
-            return "java-matter-controller"
         else:
             raise Exception("Unknown app type: %r" % self)
 
     def AppGnArgs(self):
         gn_args = {}
+
         if self == AndroidApp.TV_SERVER:
             gn_args["chip_config_network_layer_ble"] = False
         elif self == AndroidApp.TV_CASTING_APP:
@@ -99,8 +98,6 @@ class AndroidApp(Enum):
             return "tv-app"
         elif self == AndroidApp.TV_CASTING_APP:
             return "tv-casting-app"
-        elif self == AndroidApp.JAVA_MATTER_CONTROLLER:
-            return "java-matter-controller"
         else:
             return None
 
@@ -111,11 +108,31 @@ class AndroidApp(Enum):
             return None
 
 
+class AndroidProfile(Enum):
+    RELEASE = auto()
+    DEBUG = auto()
+
+    @property
+    def ProfileName(self):
+        if self == AndroidProfile.RELEASE:
+            return 'release'
+        elif self == AndroidProfile.DEBUG:
+            return 'debug'
+        else:
+            raise Exception('Unknown profile type: %r' % self)
+
+
 class AndroidBuilder(Builder):
-    def __init__(self, root, runner, board: AndroidBoard, app: AndroidApp):
+    def __init__(self,
+                 root,
+                 runner,
+                 board: AndroidBoard,
+                 app: AndroidApp,
+                 profile: AndroidProfile = AndroidProfile.DEBUG):
         super(AndroidBuilder, self).__init__(root, runner)
         self.board = board
         self.app = app
+        self.profile = profile
 
     def validate_build_environment(self):
         for k in ["ANDROID_NDK_HOME", "ANDROID_HOME"]:
@@ -136,7 +153,8 @@ class AndroidBuilder(Builder):
         if not (
             os.path.isfile(sdk_manager) and os.access(sdk_manager, os.X_OK)
         ) and not (
-            os.path.isfile(new_sdk_manager) and os.access(new_sdk_manager, os.X_OK)
+            os.path.isfile(new_sdk_manager) and os.access(
+                new_sdk_manager, os.X_OK)
         ):
             raise Exception(
                 "'%s' and '%s' is not executable by the current user"
@@ -210,6 +228,7 @@ class AndroidBuilder(Builder):
             "CHIPController.jar": "src/controller/java/CHIPController.jar",
             "SetupPayloadParser.jar": "src/setup_payload/java/SetupPayloadParser.jar",
             "AndroidPlatform.jar": "src/platform/android/AndroidPlatform.jar",
+            "libCHIPTlv.jar": "src/controller/java/libCHIPTlv.jar",
         }
 
         for jarName in jars.keys():
@@ -250,7 +269,8 @@ class AndroidBuilder(Builder):
         # App compilation
         self._Execute(
             [
-                "%s/examples/android/%s/gradlew" % (self.root, self.app.AppName()),
+                "%s/examples/android/%s/gradlew" % (
+                    self.root, self.app.AppName()),
                 "-p",
                 "%s/examples/android/%s" % (self.root, self.app.AppName()),
                 "-PmatterBuildSrcDir=%s" % self.output_dir,
@@ -262,6 +282,7 @@ class AndroidBuilder(Builder):
         )
 
     def gradlewBuildExampleAndroid(self):
+
         # Example compilation
         if self.app.Modules():
             for module in self.app.Modules():
@@ -277,7 +298,8 @@ class AndroidBuilder(Builder):
                         "-PbuildDir=%s/%s" % (self.output_dir, module),
                         ":%s:assembleDebug" % module,
                     ],
-                    title="Building Example %s, module %s" % (self.identifier, module),
+                    title="Building Example %s, module %s" % (
+                        self.identifier, module),
                 )
         else:
             self._Execute(
@@ -285,7 +307,8 @@ class AndroidBuilder(Builder):
                     "%s/examples/%s/android/App/gradlew"
                     % (self.root, self.app.ExampleName()),
                     "-p",
-                    "%s/examples/%s/android/App/" % (self.root, self.app.ExampleName()),
+                    "%s/examples/%s/android/App/" % (self.root,
+                                                     self.app.ExampleName()),
                     "-PmatterBuildSrcDir=%s" % self.output_dir,
                     "-PmatterSdkSourceBuild=false",
                     "-PbuildDir=%s" % self.output_dir,
@@ -293,16 +316,6 @@ class AndroidBuilder(Builder):
                 ],
                 title="Building Example " + self.identifier,
             )
-
-    def createJavaExecutable(self, java_program):
-        self._Execute(
-            [
-                "chmod",
-                "+x",
-                "%s/bin/%s" % (self.output_dir, java_program),
-            ],
-            title="Make Java program executable",
-        )
 
     def generate(self):
         self._Execute(
@@ -325,6 +338,8 @@ class AndroidBuilder(Builder):
             gn_args["target_cpu"] = self.board.TargetCpuName()
             gn_args["android_ndk_root"] = os.environ["ANDROID_NDK_HOME"]
             gn_args["android_sdk_root"] = os.environ["ANDROID_HOME"]
+            if self.profile != AndroidProfile.DEBUG:
+                gn_args["is_debug"] = False
             gn_args.update(self.app.AppGnArgs())
 
             args_str = ""
@@ -349,10 +364,8 @@ class AndroidBuilder(Builder):
 
             exampleName = self.app.ExampleName()
             if exampleName is not None:
-                if exampleName == "java-matter-controller":
-                    gn_gen += ["--root=%s/examples/%s/" % (self.root, exampleName)]
-                else:
-                    gn_gen += ["--root=%s/examples/%s/android/" % (self.root, exampleName)]
+                gn_gen += ["--root=%s/examples/%s/android/" %
+                           (self.root, exampleName)]
 
             if self.board.IsIde():
                 gn_gen += [
@@ -371,7 +384,8 @@ class AndroidBuilder(Builder):
             )
             if os.path.isfile(new_sdk_manager) and os.access(new_sdk_manager, os.X_OK):
                 self._Execute(
-                    ["bash", "-c", "yes | %s --licenses >/dev/null" % new_sdk_manager],
+                    ["bash", "-c", "yes | %s --licenses >/dev/null" %
+                        new_sdk_manager],
                     title="Accepting NDK licenses @ cmdline-tools",
                 )
             else:
@@ -384,14 +398,21 @@ class AndroidBuilder(Builder):
                 )
 
             app_dir = os.path.join(self.root, "examples/", self.app.AppName())
-            if exampleName == "java-matter-controller":
+
+    def stripSymbols(self):
+        output_libs_dir = os.path.join(
+            self.output_dir,
+            "lib",
+            "jni",
+            self.board.AbiName())
+        for lib in os.listdir(output_libs_dir):
+            if (lib.endswith(".so")):
                 self._Execute(
-                    [
-                        "cp",
-                        os.path.join(app_dir, "Manifest.txt"),
-                        self.output_dir,
-                    ],
-                    title="Copying Manifest.txt to " + self.output_dir,
+                    ["llvm-strip",
+                     "-s",
+                     os.path.join(output_libs_dir, lib)
+                     ],
+                    "Stripping symbols from " + lib
                 )
 
     def _build(self):
@@ -400,7 +421,8 @@ class AndroidBuilder(Builder):
             # TODO: Android Gradle with module and -PbuildDir= will caused issue, remove -PbuildDir=
             self._Execute(
                 [
-                    "%s/examples/android/%s/gradlew" % (self.root, self.app.AppName()),
+                    "%s/examples/android/%s/gradlew" % (
+                        self.root, self.app.AppName()),
                     "-p",
                     "%s/examples/android/%s" % (self.root, self.app.AppName()),
                     "-PmatterBuildSrcDir=%s" % self.output_dir,
@@ -420,32 +442,6 @@ class AndroidBuilder(Builder):
             if exampleName is None:
                 self.copyToSrcAndroid()
                 self.gradlewBuildSrcAndroid()
-            elif exampleName == "java-matter-controller":
-                jnilibs_dir = os.path.join(
-                    self.root,
-                    "examples/",
-                    self.app.ExampleName(),
-                    "app/libs/jniLibs",
-                    self.board.AbiName(),
-                )
-
-                libs_dir = os.path.join(
-                    self.root, "examples/", self.app.ExampleName(), "app/libs"
-                )
-
-                libs = [
-                    "libSetupPayloadParser.so",
-                    "libCHIPController.so",
-                    "libc++_shared.so",
-                ]
-
-                jars = {
-                    "CHIPController.jar": "third_party/connectedhomeip/src/controller/java/CHIPController.jar",
-                    "SetupPayloadParser.jar": "third_party/connectedhomeip/src/setup_payload/java/SetupPayloadParser.jar",
-                }
-
-                self.copyToExampleApp(jnilibs_dir, libs_dir, libs, jars)
-                self.createJavaExecutable("java-matter-controller")
             elif exampleName == "tv-casting-app":
                 jnilibs_dir = os.path.join(
                     self.root,
@@ -482,7 +478,8 @@ class AndroidBuilder(Builder):
                     self.root, "examples/", self.app.ExampleName(), "android/App/app/libs"
                 )
 
-                libs = ["libSetupPayloadParser.so", "libc++_shared.so", "libTvApp.so"]
+                libs = ["libSetupPayloadParser.so",
+                        "libc++_shared.so", "libTvApp.so"]
 
                 jars = {
                     "SetupPayloadParser.jar": "third_party/connectedhomeip/src/setup_payload/java/SetupPayloadParser.jar",
@@ -493,6 +490,9 @@ class AndroidBuilder(Builder):
 
                 self.copyToExampleApp(jnilibs_dir, libs_dir, libs, jars)
                 self.gradlewBuildExampleAndroid()
+
+            if (self.profile != AndroidProfile.DEBUG):
+                self.stripSymbols()
 
     def build_outputs(self):
         if self.board.IsIde():
@@ -517,19 +517,20 @@ class AndroidBuilder(Builder):
                 }
             else:
                 outputs = {
-                    self.app.AppName()
-                    + "app-debug.apk": os.path.join(
+                    self.app.AppName() + "app-debug.apk": os.path.join(
                         self.output_dir, "outputs", "apk", "debug", "app-debug.apk"
                     )
                 }
         else:
             outputs = {
-                self.app.AppName()
-                + "app-debug.apk": os.path.join(
+                self.app.AppName() + "app-debug.apk": os.path.join(
                     self.output_dir, "outputs", "apk", "debug", "app-debug.apk"
                 ),
                 "CHIPController.jar": os.path.join(
                     self.output_dir, "lib", "src/controller/java/CHIPController.jar"
+                ),
+                "libCHIPTlv.jar": os.path.join(
+                    self.output_dir, "lib", "src/controller/java/libCHIPTlv.jar"
                 ),
                 "AndroidPlatform.jar": os.path.join(
                     self.output_dir, "lib", "src/platform/android/AndroidPlatform.jar"

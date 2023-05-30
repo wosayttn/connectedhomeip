@@ -21,11 +21,10 @@
 #include "FreeRTOS.h"
 #include "event_groups.h"
 #include "semphr.h"
-#include "task.h"
-#include "timers.h"
-
 #include "sl_wfx_cmd_api.h"
 #include "sl_wfx_constants.h"
+#include "task.h"
+#include "timers.h"
 
 typedef struct __attribute__((__packed__)) sl_wfx_get_counters_cnf_body_s
 {
@@ -108,7 +107,6 @@ typedef struct __attribute__((__packed__)) sl_wfx_mib_req_s
 
 #endif /* WF200 */
 
-#ifndef RS911X_SOCKETS
 /* LwIP includes. */
 #include "lwip/apps/httpd.h"
 #include "lwip/ip_addr.h"
@@ -125,9 +123,8 @@ typedef struct __attribute__((__packed__)) sl_wfx_mib_req_s
 #define SL_WFX_SCAN_COMPLETE (1 << 6)
 #define SL_WFX_RETRY_CONNECT (1 << 7)
 
-#endif /* RS911X_SOCKETS */
-
 #include "sl_status.h"
+#include "stdbool.h"
 
 #ifdef RS911X_WIFI
 #define WLAN_TASK_STACK_SIZE 1024
@@ -138,6 +135,7 @@ typedef struct __attribute__((__packed__)) sl_wfx_mib_req_s
 #else /* WF200 */
 #define WLAN_TASK_STACK_SIZE 1024
 #define WLAN_TASK_PRIORITY 1
+#define BLE_TASK_PRIORITY 1
 #define MAX_JOIN_RETRIES_COUNT 5
 #endif
 
@@ -201,7 +199,7 @@ typedef struct __attribute__((__packed__)) sl_wfx_mib_req_s
  * be held in the Blocked state to wait for the start command to be successfully
  * sent to the timer command queue.
  */
-#define TIMER_TICKS_TO_WAIT_0 0
+#define TIMER_TICKS_TO_WAIT_0 pdMS_TO_TICKS(0)
 
 #define CONVERT_SEC_TO_MSEC 1000
 #define CONVERT_USEC_TO_MSEC (1 / 1000)
@@ -219,7 +217,6 @@ typedef struct __attribute__((__packed__)) sl_wfx_mib_req_s
 #define BG_SCAN_RES_SIZE 500
 
 #define SPI_CONFIG_SUCESS 0
-#define WPA3_SECURITY 3
 
 typedef enum
 {
@@ -237,28 +234,19 @@ typedef enum
 /* Note that these are same as RSI_security */
 typedef enum
 {
-    WFX_SEC_NONE           = 0,
-    WFX_SEC_WPA            = 1,
-    WFX_SEC_WPA2           = 2,
-    WFX_SEC_WEP            = 3,
-    WFX_SEC_WPA_EAP        = 4,
-    WFX_SEC_WPA2_EAP       = 5,
-    WFX_SEC_WPA_WPA2_MIXED = 6,
-    WFX_SEC_WPA_PMK        = 7,
-    WFX_SEC_WPA2_PMK       = 8,
-    WFX_SEC_WPS_PIN        = 9,
-    WFX_SEC_GEN_WPS_PIN    = 10,
-    WFX_SEC_PUSH_BTN       = 11,
-    WFX_SEC_WPA3           = 11,
+    WFX_SEC_UNSPECIFIED = 0,
+    WFX_SEC_NONE        = 1,
+    WFX_SEC_WEP         = 2,
+    WFX_SEC_WPA         = 3,
+    WFX_SEC_WPA2        = 4,
+    WFX_SEC_WPA3        = 5
 } wfx_sec_t;
-
-#define WPA3_SECURITY 3
 
 typedef struct
 {
     char ssid[32 + 1];
     char passkey[64 + 1];
-    uint8_t security;
+    wfx_sec_t security;
 } wfx_wifi_provision_t;
 
 typedef enum
@@ -273,7 +261,7 @@ typedef enum
 typedef struct wfx_wifi_scan_result
 {
     char ssid[32 + 1];
-    uint8_t security;
+    wfx_sec_t security;
     uint8_t bssid[6];
     uint8_t chan;
     int16_t rssi; /* I suspect this is in dBm - so signed */
@@ -364,6 +352,10 @@ void wfx_ip_changed_notify(int got_ip);
 void wfx_ipv6_notify(int got_ip);
 
 #ifdef RS911X_WIFI
+/* RSI Power Save */
+#if CHIP_DEVICE_CONFIG_ENABLE_SED
+sl_status_t wfx_power_save();
+#endif /* CHIP_DEVICE_CONFIG_ENABLE_SED */
 /* RSI for LWIP */
 void * wfx_rsi_alloc_pkt(void);
 void wfx_rsi_pkt_add_data(void * p, uint8_t * buf, uint16_t len, uint16_t off);

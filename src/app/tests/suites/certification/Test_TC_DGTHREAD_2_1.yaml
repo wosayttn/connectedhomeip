@@ -178,7 +178,7 @@ tests:
                 value: "y"
 
     - label: "TH reads OverrunCount attribute value from DUT"
-      PICS: DGTHREAD.S.A0006
+      PICS: DGTHREAD.S.A0006 && DGTHREAD.S.F01
       command: "readAttribute"
       attribute: "OverrunCount"
       response:
@@ -213,7 +213,7 @@ tests:
           "read NeighborTableList attribute from DUT and Verify that the
           NeighborTable List size is Zero or greater and verify each node types"
       verification: |
-          ./chip-tool threadnetworkdiagnostics read neighbor-table-list 54 0
+          ./chip-tool threadnetworkdiagnostics read neighbor-table 54 0
 
           Verify "NeighborTableList value is  Zero or greater  " on the TH(Chip-tool) Log:
           if the attribute has an entries verify the each node mentioned in the test plan.
@@ -250,10 +250,10 @@ tests:
                 value: "y"
 
     - label:
-          "Read RouteTableList attribute from DUT and Verify that the
-          RouteTableList List size is Zero or greater and verify each node types"
+          "Read RouteTable attribute from DUT and Verify that the RouteTableList
+          List size is Zero or greater and verify each node types"
       verification: |
-          ./chip-tool threadnetworkdiagnostics read route-table-list 54 0
+          ./chip-tool threadnetworkdiagnostics read route-table 54 0
 
           Verify "RouteTableList value is  Zero or greater  " on the TH(Chip-tool) Log:
           if the attribute has an entries verify the each node mentioned in the test plan.
@@ -335,7 +335,7 @@ tests:
               maxValue: 255
 
     - label: "TH reads DetachedRoleCount attribute value from DUT"
-      PICS: DGTHREAD.S.A000e
+      PICS: DGTHREAD.S.A000e && DGTHREAD.S.F02
       command: "readAttribute"
       attribute: "DetachedRoleCount"
       response:
@@ -345,7 +345,7 @@ tests:
               maxValue: 65535
 
     - label: "TH reads ChildRoleCount attribute value from DUT"
-      PICS: DGTHREAD.S.A001f
+      PICS: DGTHREAD.S.A000f && DGTHREAD.S.F02
       command: "readAttribute"
       attribute: "ChildRoleCount"
       response:
@@ -355,7 +355,7 @@ tests:
               maxValue: 65535
 
     - label: "TH reads RouterRoleCount attribute value from DUT"
-      PICS: DGTHREAD.S.A0010
+      PICS: DGTHREAD.S.A0010 && DGTHREAD.S.F02
       command: "readAttribute"
       attribute: "RouterRoleCount"
       response:
@@ -365,7 +365,7 @@ tests:
               maxValue: 65535
 
     - label: "TH reads LeaderRoleCount attribute value from DUT"
-      PICS: DGTHREAD.S.A0011
+      PICS: DGTHREAD.S.A0011 && DGTHREAD.S.F02
       command: "readAttribute"
       attribute: "LeaderRoleCount"
       response:
@@ -375,7 +375,7 @@ tests:
               maxValue: 65535
 
     - label: "TH reads AttachAttemptCount attribute value from DUT"
-      PICS: DGTHREAD.S.A0012
+      PICS: DGTHREAD.S.A0012 && DGTHREAD.S.F02
       command: "readAttribute"
       attribute: "AttachAttemptCount"
       response:
@@ -385,7 +385,7 @@ tests:
               maxValue: 65535
 
     - label: "TH reads PartitionIdChangeCount attribute value from DUT"
-      PICS: DGTHREAD.S.A0013
+      PICS: DGTHREAD.S.A0013 && DGTHREAD.S.F02
       command: "readAttribute"
       attribute: "PartitionIdChangeCount"
       response:
@@ -396,7 +396,7 @@ tests:
 
     - label:
           "TH reads BetterPartitionAttachAttemptCount attribute value from DUT"
-      PICS: DGTHREAD.S.A0014
+      PICS: DGTHREAD.S.A0014 && DGTHREAD.S.F02
       command: "readAttribute"
       attribute: "BetterPartitionAttachAttemptCount"
       response:
@@ -406,7 +406,7 @@ tests:
               maxValue: 65535
 
     - label: "TH reads ParentChangeCount attribute value from DUT"
-      PICS: DGTHREAD.S.A0015
+      PICS: DGTHREAD.S.A0015 && DGTHREAD.S.F02
       command: "readAttribute"
       attribute: "ParentChangeCount"
       response:

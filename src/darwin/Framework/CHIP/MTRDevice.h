@@ -44,8 +44,8 @@ typedef NS_ENUM(NSUInteger, MTRDeviceState) {
  * retrieved when performing actions using a combination of MTRBaseDevice
  * and MTRAsyncCallbackQueue.
  */
-+ (instancetype)deviceWithNodeID:(NSNumber *)nodeID
-                      controller:(MTRDeviceController *)controller API_AVAILABLE(ios(16.4), macos(13.3), watchos(9.4), tvos(16.4));
++ (MTRDevice *)deviceWithNodeID:(NSNumber *)nodeID
+                     controller:(MTRDeviceController *)controller API_AVAILABLE(ios(16.4), macos(13.3), watchos(9.4), tvos(16.4));
 
 /**
  * The current state of the device.
@@ -74,7 +74,8 @@ typedef NS_ENUM(NSUInteger, MTRDeviceState) {
  *
  * If events are always reported with calendar time, then this property will return nil.
  */
-@property (nonatomic, readonly, nullable) NSDate * estimatedStartTime MTR_NEWLY_AVAILABLE;
+@property (nonatomic, readonly, nullable)
+    NSDate * estimatedStartTime API_AVAILABLE(ios(16.5), macos(13.4), watchos(9.5), tvos(16.5));
 
 /**
  * Set the delegate to receive asynchronous callbacks about the device.
@@ -146,7 +147,10 @@ typedef NS_ENUM(NSUInteger, MTRDeviceState) {
  * @param timeout   timeout in milliseconds for timed invoke, or nil. This value must be within [1, UINT16_MAX], and will be clamped
  * to this range.
  *
- * @param completion  response handler will receive either values or error.
+ * @param completion  response handler will receive either values or error.  A
+ *                    path-specific error status from the command invocation
+ *                    will result in an error being passed to the completion, so
+ *                    values will only be passed in when the command succeeds.
  */
 - (void)invokeCommandWithEndpointID:(NSNumber *)endpointID
                           clusterID:(NSNumber *)clusterID
@@ -180,13 +184,23 @@ typedef NS_ENUM(NSUInteger, MTRDeviceState) {
                                       completion:(MTRDeviceOpenCommissioningWindowHandler)completion
     API_AVAILABLE(ios(16.2), macos(13.1), watchos(9.2), tvos(16.2));
 
-@end
+/**
+ * Open a commissioning window on the device, using a random setup passcode.
+ *
+ * On success, completion will be called on queue with the MTRSetupPayload that
+ * can be used to commission the device.
+ *
+ * @param discriminator The discriminator to use for the commissionable
+ *                      advertisement.
+ * @param duration      Duration, in seconds, during which the commissioning
+ *                      window will be open.
+ */
+- (void)openCommissioningWindowWithDiscriminator:(NSNumber *)discriminator
+                                        duration:(NSNumber *)duration
+                                           queue:(dispatch_queue_t)queue
+                                      completion:(MTRDeviceOpenCommissioningWindowHandler)completion MTR_NEWLY_AVAILABLE;
 
-extern NSString * const MTREventNumberKey MTR_NEWLY_AVAILABLE;
-extern NSString * const MTREventPriorityKey MTR_NEWLY_AVAILABLE;
-extern NSString * const MTREventTimeTypeKey MTR_NEWLY_AVAILABLE;
-extern NSString * const MTREventSystemUpTimeKey MTR_NEWLY_AVAILABLE;
-extern NSString * const MTREventTimestampDateKey MTR_NEWLY_AVAILABLE;
+@end
 
 @protocol MTRDeviceDelegate <NSObject>
 @required
@@ -238,9 +252,9 @@ extern NSString * const MTREventTimestampDateKey MTR_NEWLY_AVAILABLE;
 /**
  * Deprecated MTRDevice APIs.
  */
-+ (instancetype)deviceWithNodeID:(uint64_t)nodeID
-                deviceController:(MTRDeviceController *)deviceController
-    API_DEPRECATED(
++ (MTRDevice *)deviceWithNodeID:(uint64_t)nodeID
+               deviceController:(MTRDeviceController *)deviceController
+    MTR_DEPRECATED(
         "Please use deviceWithNodeID:controller:", ios(16.1, 16.4), macos(13.0, 13.3), watchos(9.1, 9.4), tvos(16.1, 16.4));
 
 - (void)invokeCommandWithEndpointID:(NSNumber *)endpointID
@@ -252,7 +266,7 @@ extern NSString * const MTREventTimestampDateKey MTR_NEWLY_AVAILABLE;
                  timedInvokeTimeout:(NSNumber * _Nullable)timeout
                         clientQueue:(dispatch_queue_t)queue
                          completion:(MTRDeviceResponseHandler)completion
-    API_DEPRECATED("Please use "
+    MTR_DEPRECATED("Please use "
                    "invokeCommandWithEndpointID:clusterID:commandID:commandFields:expectedValues:expectedValueInterval:"
                    "timedInvokeTimeout:queue:completion:",
         ios(16.1, 16.4), macos(13.0, 13.3), watchos(9.1, 9.4), tvos(16.1, 16.4));

@@ -108,10 +108,10 @@ CHIP_ERROR AppTask::Init()
 #else
     SetDeviceAttestationCredentialsProvider(Examples::GetExampleDACProvider());
 #endif
+#endif // CONFIG_CHIP_K32W0_REAL_FACTORY_DATA
 
     // QR code will be used with CHIP Tool
     AppTask::PrintOnboardingInfo();
-#endif
 
     /* HW init leds */
 #if !cPWR_UsePowerDownMode
@@ -758,12 +758,20 @@ void AppTask::UpdateClusterState(void)
 }
 void AppTask::UpdateClusterStateInternal(intptr_t arg)
 {
-    uint8_t newValue = !BoltLockMgr().IsUnlocked();
+    using namespace chip::app::Clusters::DoorLock;
+
+    DlLockState newValue;
+    if (BoltLockMgr().IsUnlocked())
+    {
+        newValue = DlLockState::kUnlocked;
+    }
+    else
+    {
+        newValue = DlLockState::kLocked;
+    }
 
     // write the new door lock state
-    EmberAfStatus status =
-        emberAfWriteAttribute(1, chip::app::Clusters::DoorLock::Id, chip::app::Clusters::DoorLock::Attributes::LockState::Id,
-                              (uint8_t *) &newValue, ZCL_ENUM8_ATTRIBUTE_TYPE);
+    EmberAfStatus status = Attributes::LockState::Set(1, newValue);
 
     if (status != EMBER_ZCL_STATUS_SUCCESS)
     {

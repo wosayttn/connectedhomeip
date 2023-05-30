@@ -234,6 +234,83 @@ tests:
               isUpperCase: false
               isLowerCase: false
 
+    - label: "Write attribute CHAR_STRING Value with only digits"
+      command: "writeAttribute"
+      attribute: "char_string"
+      arguments:
+          value: "1234567890"
+
+    - label:
+          "Read attribute CHAR_STRING Value isLowerCase/isUpperCase Constraints"
+      command: "readAttribute"
+      attribute: "char_string"
+      response:
+          constraints:
+              isUpperCase: true
+              isLowerCase: true
+
+    - label: "Write attribute CHAR_STRING Value with only non-letters"
+      command: "writeAttribute"
+      attribute: "char_string"
+      arguments:
+          value: "12.4,76:"
+
+    - label:
+          "Read attribute CHAR_STRING Value isLowerCase/isUpperCase Constraints"
+      command: "readAttribute"
+      attribute: "char_string"
+      response:
+          constraints:
+              isUpperCase: true
+              isLowerCase: true
+
+    - label:
+          "Write attribute CHAR_STRING Value with uppercase letters and symbols"
+      command: "writeAttribute"
+      attribute: "char_string"
+      arguments:
+          value: "ABC;.* "
+
+    - label:
+          "Read attribute CHAR_STRING Value isLowerCase/isUpperCase Constraints"
+      command: "readAttribute"
+      attribute: "char_string"
+      response:
+          constraints:
+              isUpperCase: true
+              isLowerCase: false
+
+    - label:
+          "Write attribute CHAR_STRING Value with lowercase letters and symbols"
+      command: "writeAttribute"
+      attribute: "char_string"
+      arguments:
+          value: "abc;.* "
+
+    - label:
+          "Read attribute CHAR_STRING Value isLowerCase/isUpperCase Constraints"
+      command: "readAttribute"
+      attribute: "char_string"
+      response:
+          constraints:
+              isUpperCase: false
+              isLowerCase: true
+
+    - label: "Write attribute CHAR_STRING Value which is empty"
+      command: "writeAttribute"
+      attribute: "char_string"
+      arguments:
+          value: ""
+
+    - label:
+          "Read attribute CHAR_STRING Value isLowerCase/isUpperCase Constraints"
+      command: "readAttribute"
+      attribute: "char_string"
+      response:
+          constraints:
+              isUpperCase: true
+              isLowerCase: true
+
     - label: "Write attribute CHAR_STRING Value"
       command: "writeAttribute"
       attribute: "char_string"
@@ -263,5 +340,83 @@ tests:
     - label: "Write attribute CHAR_STRING Value Back to Default Value"
       command: "writeAttribute"
       attribute: "char_string"
+      arguments:
+          value: ""
+
+    # Tests for hasValue attribute
+
+    - label: "Read attribute NULLABLE_INT8U Default Value"
+      command: "readAttribute"
+      attribute: "nullable_int8u"
+      response:
+          value: 0
+
+    - label: "Write attribute NULLABLE_INT8U with a value"
+      command: "writeAttribute"
+      attribute: "nullable_int8u"
+      arguments:
+          value: 0
+
+    - label: "Read attribute NULLABLE_INT8U with a value"
+      command: "readAttribute"
+      attribute: "nullable_int8u"
+      response:
+          constraints:
+              hasValue: true
+
+    - label: "Write attribute NULLABLE_INT8U without a value"
+      command: "writeAttribute"
+      attribute: "nullable_int8u"
+      arguments:
+          value: null
+
+    - label: "Read attribute NULLABLE_INT8U with a value"
+      command: "readAttribute"
+      attribute: "nullable_int8u"
+      response:
+          constraints:
+              hasValue: false
+
+    - label: "Write attribute NULLABLE_INT8U back to Default Value"
+      command: "writeAttribute"
+      attribute: "nullable_int8u"
+      arguments:
+          value: 0
+
+    - label: "Read attribute NULLABLE_OCTET_STRING Default Value"
+      command: "readAttribute"
+      attribute: "nullable_octet_string"
+      response:
+          value: ""
+
+    - label: "Write attribute NULLABLE_OCTET_STRING"
+      command: "writeAttribute"
+      attribute: "nullable_octet_string"
+      arguments:
+          value: "TestValue"
+
+    - label: "Read attribute NULLABLE_OCTET_STRING"
+      command: "readAttribute"
+      attribute: "nullable_octet_string"
+      response:
+          constraints:
+              hasValue: true
+
+    - label: "Write attribute NULLABLE_OCTET_STRING"
+      command: "writeAttribute"
+      attribute: "nullable_octet_string"
+      arguments:
+          value: null
+
+    - label: "Read attribute NULLABLE_OCTET_STRING"
+      command: "readAttribute"
+      attribute: "nullable_octet_string"
+      response:
+          constraints:
+              hasValue: false
+
+    - label: "Write attribute NULLABLE_OCTET_STRING back to Default Value"
+      command: "writeAttribute"
+      attribute: "nullable_octet_string"
       arguments:
           value: ""

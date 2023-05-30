@@ -38,6 +38,7 @@
 #include <credentials/GroupDataProviderImpl.h>
 #include <credentials/OperationalCertificateStore.h>
 #include <credentials/PersistentStorageOpCertStore.h>
+#include <crypto/DefaultSessionKeystore.h>
 #include <crypto/OperationalKeystore.h>
 #include <crypto/PersistentStorageOperationalKeystore.h>
 #include <inet/InetConfig.h>
@@ -55,6 +56,7 @@
 #include <protocols/secure_channel/SimpleSessionResumptionStorage.h>
 #endif
 #include <protocols/user_directed_commissioning/UserDirectedCommissioning.h>
+#include <system/SystemClock.h>
 #include <transport/SessionManager.h>
 #include <transport/TransportMgr.h>
 #include <transport/TransportMgrBase.h>
@@ -84,8 +86,7 @@ using ServerTransportMgr = chip::TransportMgr<chip::Transport::UDP
 
 struct ServerInitParams
 {
-    ServerInitParams()          = default;
-    virtual ~ServerInitParams() = default;
+    ServerInitParams() = default;
 
     // Not copyable
     ServerInitParams(const ServerInitParams &) = delete;
@@ -115,6 +116,8 @@ struct ServerInitParams
     // Group data provider: MUST be injected. Used to maintain critical keys such as the Identity
     // Protection Key (IPK) for CASE. Must be initialized before being provided.
     Credentials::GroupDataProvider * groupDataProvider = nullptr;
+    // Session keystore: MUST be injected. Used to derive and manage lifecycle of symmetric keys.
+    Crypto::SessionKeystore * sessionKeystore = nullptr;
     // Access control delegate: MUST be injected. Used to look up access control rules. Must be
     // initialized before being provided.
     Access::AccessControl::Delegate * accessDelegate = nullptr;
@@ -132,42 +135,6 @@ struct ServerInitParams
     // Operational certificate store with access to the operational certs in persisted storage:
     // must not be null at timne of Server::Init().
     Credentials::OperationalCertificateStore * opCertStore = nullptr;
-};
-
-class IgnoreCertificateValidityPolicy : public Credentials::CertificateValidityPolicy
-{
-public:
-    IgnoreCertificateValidityPolicy() {}
-
-    /**
-     * @brief
-     *
-     * This certificate validity policy does not validate NotBefore or
-     * NotAfter to accommodate platforms that may have wall clock time, but
-     * where it is unreliable.
-     *
-     * Last Known Good Time is also not considered in this policy.
-     *
-     * @param cert CHIP Certificate for which we are evaluating validity
-     * @param depth the depth of the certificate in the chain, where the leaf is at depth 0
-     * @return CHIP_NO_ERROR if CHIPCert should accept the certificate; an appropriate CHIP_ERROR if it should be rejected
-     */
-    CHIP_ERROR ApplyCertificateValidityPolicy(const Credentials::ChipCertificateData * cert, uint8_t depth,
-                                              Credentials::CertificateValidityResult result) override
-    {
-        switch (result)
-        {
-        case Credentials::CertificateValidityResult::kValid:
-        case Credentials::CertificateValidityResult::kNotYetValid:
-        case Credentials::CertificateValidityResult::kExpired:
-        case Credentials::CertificateValidityResult::kNotExpiredAtLastKnownGoodTime:
-        case Credentials::CertificateValidityResult::kExpiredAtLastKnownGoodTime:
-        case Credentials::CertificateValidityResult::kTimeUnknown:
-            return CHIP_NO_ERROR;
-        default:
-            return CHIP_ERROR_INVALID_ARGUMENT;
-        }
-    }
 };
 
 /**
@@ -214,22 +181,8 @@ struct CommonCaseDeviceServerInitParams : public ServerInitParams
      * @return CHIP_NO_ERROR on success or a CHIP_ERROR value from APIs called to initialize
      *         resources on failure.
      */
-    virtual CHIP_ERROR InitializeStaticResourcesBeforeServerInit()
+    CHIP_ERROR InitializeStaticResourcesBeforeServerInit()
     {
-        static chip::KvsPersistentStorageDelegate sKvsPersistenStorageDelegate;
-        static chip::PersistentStorageOperationalKeystore sPersistentStorageOperationalKeystore;
-        static chip::Credentials::PersistentStorageOpCertStore sPersistentStorageOpCertStore;
-        static chip::Credentials::GroupDataProviderImpl sGroupDataProvider;
-        static IgnoreCertificateValidityPolicy sDefaultCertValidityPolicy;
-
-#if CHIP_CONFIG_ENABLE_SESSION_RESUMPTION
-        static chip::SimpleSessionResumptionStorage sSessionResumptionStorage;
-#endif
-#if CHIP_CONFIG_PERSIST_SUBSCRIPTIONS
-        static chip::app::SimpleSubscriptionResumptionStorage sSubscriptionResumptionStorage;
-#endif
-        static chip::app::DefaultAclStorage sAclStorage;
-
         // KVS-based persistent storage delegate injection
         if (persistentStorageDelegate == nullptr)
         {
@@ -258,8 +211,12 @@ struct CommonCaseDeviceServerInitParams : public ServerInitParams
             this->opCertStore = &sPersistentStorageOpCertStore;
         }
 
+        // Session Keystore injection
+        this->sessionKeystore = &sSessionKeystore;
+
         // Group Data provider injection
         sGroupDataProvider.SetStorageDelegate(this->persistentStorageDelegate);
+        sGroupDataProvider.SetSessionKeystore(this->sessionKeystore);
         ReturnErrorOnFailure(sGroupDataProvider.Init());
         this->groupDataProvider = &sGroupDataProvider;
 
@@ -276,10 +233,6 @@ struct CommonCaseDeviceServerInitParams : public ServerInitParams
         // Inject ACL storage. (Don't initialize it.)
         this->aclStorage = &sAclStorage;
 
-        // Inject certificate validation policy compatible with non-wall-clock-time-synced
-        // embedded systems.
-        this->certificateValidityPolicy = &sDefaultCertValidityPolicy;
-
 #if CHIP_CONFIG_PERSIST_SUBSCRIPTIONS
         ChipLogProgress(AppServer, "Initializing subscription resumption storage...");
         ReturnErrorOnFailure(sSubscriptionResumptionStorage.Init(this->persistentStorageDelegate));
@@ -290,6 +243,20 @@ struct CommonCaseDeviceServerInitParams : public ServerInitParams
 
         return CHIP_NO_ERROR;
     }
+
+private:
+    static KvsPersistentStorageDelegate sKvsPersistenStorageDelegate;
+    static PersistentStorageOperationalKeystore sPersistentStorageOperationalKeystore;
+    static Credentials::PersistentStorageOpCertStore sPersistentStorageOpCertStore;
+    static Credentials::GroupDataProviderImpl sGroupDataProvider;
+#if CHIP_CONFIG_ENABLE_SESSION_RESUMPTION
+    static SimpleSessionResumptionStorage sSessionResumptionStorage;
+#endif
+#if CHIP_CONFIG_PERSIST_SUBSCRIPTIONS
+    static app::SimpleSubscriptionResumptionStorage sSubscriptionResumptionStorage;
+#endif
+    static app::DefaultAclStorage sAclStorage;
+    static Crypto::DefaultSessionKeystore sSessionKeystore;
 };
 
 /**
@@ -304,7 +271,7 @@ struct CommonCaseDeviceServerInitParams : public ServerInitParams
  * after `Server::Shutdown()` is called.
  *
  * TODO: Separate lifecycle ownership for some more capabilities that should not belong to
- *       common logic, such as `DispatchShutDownAndStopEventLoop`.
+ *       common logic, such as `GenerateShutDownEvent`.
  *
  * TODO: Replace all uses of GetInstance() to "reach in" to this state from all cluster
  *       server common logic that deal with global node state with either a common NodeState
@@ -341,6 +308,8 @@ public:
 
     Credentials::GroupDataProvider * GetGroupDataProvider() { return mGroupsProvider; }
 
+    Crypto::SessionKeystore * GetSessionKeystore() const { return mSessionKeystore; }
+
 #if CONFIG_NETWORK_LAYER_BLE
     Ble::BleLayer * GetBleLayerObject() { return mBleLayer; }
 #endif
@@ -360,14 +329,19 @@ public:
     app::DefaultAttributePersistenceProvider & GetDefaultAttributePersister() { return mAttributePersister; }
 
     /**
-     * This function send the ShutDown event before stopping
-     * the event loop.
+     * This function causes the ShutDown event to be generated async on the
+     * Matter event loop.  Should be called before stopping the event loop.
      */
-    void DispatchShutDownAndStopEventLoop();
+    void GenerateShutDownEvent();
 
     void Shutdown();
 
     void ScheduleFactoryReset();
+
+    System::Clock::Microseconds64 TimeSinceInit() const
+    {
+        return System::SystemClock().GetMonotonicMicroseconds64() - mInitTimestamp;
+    }
 
     static Server & GetInstance() { return sServer; }
 
@@ -524,9 +498,60 @@ private:
         Server * mServer = nullptr;
     };
 
+    /**
+     * Since root certificates for Matter nodes cannot be updated in a reasonable
+     * way, it doesn't make sense to enforce expiration time on root certificates.
+     * This policy allows through root certificates, even if they're expired, and
+     * otherwise delegates to the provided policy, or to the default policy if no
+     * policy is provided.
+     */
+    class IgnoreRootExpirationValidityPolicy : public Credentials::CertificateValidityPolicy
+    {
+    public:
+        IgnoreRootExpirationValidityPolicy() {}
+
+        void Init(Credentials::CertificateValidityPolicy * providedPolicy) { mProvidedPolicy = providedPolicy; }
+
+        CHIP_ERROR ApplyCertificateValidityPolicy(const Credentials::ChipCertificateData * cert, uint8_t depth,
+                                                  Credentials::CertificateValidityResult result) override
+        {
+            switch (result)
+            {
+            case Credentials::CertificateValidityResult::kExpired:
+            case Credentials::CertificateValidityResult::kExpiredAtLastKnownGoodTime:
+            case Credentials::CertificateValidityResult::kTimeUnknown: {
+                uint8_t certType;
+                ReturnErrorOnFailure(cert->mSubjectDN.GetCertType(certType));
+                if (certType == Credentials::kCertType_Root)
+                {
+                    return CHIP_NO_ERROR;
+                }
+
+                break;
+            }
+            default:
+                break;
+            }
+
+            if (mProvidedPolicy)
+            {
+                return mProvidedPolicy->ApplyCertificateValidityPolicy(cert, depth, result);
+            }
+
+            return Credentials::CertificateValidityPolicy::ApplyDefaultPolicy(cert, depth, result);
+        }
+
+    private:
+        Credentials::CertificateValidityPolicy * mProvidedPolicy = nullptr;
+    };
+
 #if CONFIG_NETWORK_LAYER_BLE
     Ble::BleLayer * mBleLayer = nullptr;
 #endif
+
+    // By default, use a certificate validation policy compatible with non-wall-clock-time-synced
+    // embedded systems.
+    static Credentials::IgnoreCertificateValidityPeriodPolicy sDefaultCertValidityPolicy;
 
     ServerTransportMgr mTransports;
     SessionManager mSessions;
@@ -545,11 +570,13 @@ private:
 #endif // CHIP_DEVICE_CONFIG_ENABLE_COMMISSIONER_DISCOVERY_CLIENT
     CommissioningWindowManager mCommissioningWindowManager;
 
+    IgnoreRootExpirationValidityPolicy mCertificateValidityPolicy;
+
     PersistentStorageDelegate * mDeviceStorage;
     SessionResumptionStorage * mSessionResumptionStorage;
     app::SubscriptionResumptionStorage * mSubscriptionResumptionStorage;
-    Credentials::CertificateValidityPolicy * mCertificateValidityPolicy;
     Credentials::GroupDataProvider * mGroupsProvider;
+    Crypto::SessionKeystore * mSessionKeystore;
     app::DefaultAttributePersistenceProvider mAttributePersister;
     GroupDataProviderListener mListener;
     ServerFabricDelegate mFabricDelegate;
@@ -566,6 +593,8 @@ private:
     uint16_t mOperationalServicePort;
     uint16_t mUserDirectedCommissioningPort;
     Inet::InterfaceId mInterfaceId;
+
+    System::Clock::Microseconds64 mInitTimestamp;
 };
 
 } // namespace chip

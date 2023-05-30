@@ -15,14 +15,14 @@
 
 import logging
 import os
-import sys
+import shutil
+import tempfile
 import threading
 import time
 import typing
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum, auto
-from random import randrange
 
 TEST_NODE_ID = '0x12344321'
 
@@ -94,7 +94,7 @@ class App:
             if self.killed:
                 return 0
             # If the App was never started, wait cannot be called on the process
-            if self.process == None:
+            if self.process is None:
                 time.sleep(0.1)
                 continue
             code = self.process.wait(timeout)
@@ -166,9 +166,11 @@ class ApplicationPaths:
     tv_app: typing.List[str]
     bridge_app: typing.List[str]
     chip_repl_yaml_tester_cmd: typing.List[str]
+    chip_tool_with_python_cmd: typing.List[str]
 
     def items(self):
-        return [self.chip_tool, self.all_clusters_app, self.lock_app, self.ota_provider_app, self.ota_requestor_app, self.tv_app, self.bridge_app, self.chip_repl_yaml_tester_cmd]
+        return [self.chip_tool, self.all_clusters_app, self.lock_app, self.ota_provider_app, self.ota_requestor_app,
+                self.tv_app, self.bridge_app, self.chip_repl_yaml_tester_cmd, self.chip_tool_with_python_cmd]
 
 
 @dataclass
@@ -225,7 +227,9 @@ class TestTag(Enum):
 
 class TestRunTime(Enum):
     CHIP_TOOL_BUILTIN = auto()  # run via chip-tool built-in test commands
-    PYTHON_YAML = auto()       # use the python yaml test runner
+    CHIP_TOOL_PYTHON = auto()  # use the python yaml test parser with chip-tool
+    CHIP_REPL_PYTHON = auto()       # use the python yaml test runner
+    DARWIN_FRAMEWORK_TOOL_BUILTIN = auto()  # run via darwin-framework-tool built-in test commands
 
 
 @dataclass
@@ -251,11 +255,14 @@ class TestDefinition:
         """Get a human readable list of tags applied to this test"""
         return ", ".join([t.to_s() for t in self.tags])
 
-    def Run(self, runner, apps_register, paths: ApplicationPaths, pics_file: str, timeout_seconds: typing.Optional[int], dry_run=False, test_runtime: TestRunTime = TestRunTime.CHIP_TOOL_BUILTIN):
+    def Run(self, runner, apps_register, paths: ApplicationPaths, pics_file: str,
+            timeout_seconds: typing.Optional[int], dry_run=False, test_runtime: TestRunTime = TestRunTime.CHIP_TOOL_BUILTIN):
         """
         Executes the given test case using the provided runner for execution.
         """
         runner.capture_delegate = ExecutionCapture()
+
+        tool_storage_dir = None
 
         try:
             if self.target == TestTarget.ALL_CLUSTERS:
@@ -274,7 +281,14 @@ class TestDefinition:
 
             for path in paths.items():
                 # Do not add chip-tool or chip-repl-yaml-tester-cmd to the register
-                if path == paths.chip_tool or path == paths.chip_repl_yaml_tester_cmd:
+                if path == paths.chip_tool or path == paths.chip_repl_yaml_tester_cmd or path == paths.chip_tool_with_python_cmd:
+                    continue
+
+                # Skip items where we don't actually have a path.  This can
+                # happen if the relevant application does not exist.  It's
+                # non-fatal as long as we are not trying to run any tests that
+                # need that application.
+                if path[-1] is None:
                     continue
 
                 # For the app indicated by self.target, give it the 'default' key to add to the register
@@ -291,29 +305,29 @@ class TestDefinition:
                 # so it will be commissionable again.
                 app.factoryReset()
 
-            tool_cmd = paths.chip_tool
+            tool_cmd = paths.chip_tool if test_runtime != TestRunTime.CHIP_TOOL_PYTHON else paths.chip_tool_with_python_cmd
 
-            files_to_unlink = [
-                '/tmp/chip_tool_config.ini',
-                '/tmp/chip_tool_config.alpha.ini',
-                '/tmp/chip_tool_config.beta.ini',
-                '/tmp/chip_tool_config.gamma.ini',
-            ]
-
-            for f in files_to_unlink:
-                if os.path.exists(f):
-                    os.unlink(f)
+            tool_storage_dir = tempfile.mkdtemp()
+            tool_storage_args = ['--storage-directory', tool_storage_dir]
 
             # Only start and pair the default app
             app = apps_register.get('default')
             app.start()
             pairing_cmd = tool_cmd + ['pairing', 'code', TEST_NODE_ID, app.setupCode]
             test_cmd = tool_cmd + ['tests', self.run_name] + ['--PICS', pics_file]
+            if test_runtime == TestRunTime.CHIP_TOOL_PYTHON:
+                server_args = ['--server_path', paths.chip_tool[-1]] + \
+                    ['--server_arguments', 'interactive server ' + ' '.join(tool_storage_args)]
+                pairing_cmd += server_args
+                test_cmd += server_args
+            elif test_runtime == TestRunTime.CHIP_TOOL_BUILTIN:
+                pairing_cmd += tool_storage_args
+                test_cmd += tool_storage_args
 
             if dry_run:
                 logging.info(" ".join(pairing_cmd))
                 logging.info(" ".join(test_cmd))
-            elif test_runtime == TestRunTime.PYTHON_YAML:
+            elif test_runtime == TestRunTime.CHIP_REPL_PYTHON:
                 chip_repl_yaml_tester_cmd = paths.chip_repl_yaml_tester_cmd
                 python_cmd = chip_repl_yaml_tester_cmd + \
                     ['--setup-code', app.setupCode] + ['--yaml-path', self.run_name] + ["--pics-file", pics_file]
@@ -336,3 +350,5 @@ class TestDefinition:
             apps_register.killAll()
             apps_register.factoryResetAll()
             apps_register.removeAll()
+            if tool_storage_dir is not None:
+                shutil.rmtree(tool_storage_dir, ignore_errors=True)

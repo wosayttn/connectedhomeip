@@ -12,21 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
-import re
-from itertools import combinations
-from typing import Any, List, Optional
-
 from builders.ameba import AmebaApp, AmebaBoard, AmebaBuilder
-from builders.android import AndroidApp, AndroidBoard, AndroidBuilder
+from builders.android import AndroidApp, AndroidBoard, AndroidBuilder, AndroidProfile
+from builders.asr import ASRApp, ASRBoard, ASRBuilder
 from builders.bouffalolab import BouffalolabApp, BouffalolabBoard, BouffalolabBuilder
-from builders.cc13x2x7_26x2x7 import cc13x2x7_26x2x7App, cc13x2x7_26x2x7Builder
 from builders.cc32xx import cc32xxApp, cc32xxBuilder
 from builders.cyw30739 import Cyw30739App, Cyw30739Board, Cyw30739Builder
 from builders.efr32 import Efr32App, Efr32Board, Efr32Builder
 from builders.esp32 import Esp32App, Esp32Board, Esp32Builder
 from builders.genio import GenioApp, GenioBuilder
-from builders.host import HostApp, HostBoard, HostBuilder, HostCryptoLibrary
+from builders.host import HostApp, HostBoard, HostBuilder, HostCryptoLibrary, HostFuzzingType
 from builders.imx import IMXApp, IMXBuilder
 from builders.infineon import InfineonApp, InfineonBoard, InfineonBuilder
 from builders.k32w import K32WApp, K32WBuilder
@@ -36,6 +31,7 @@ from builders.nrf import NrfApp, NrfBoard, NrfConnectBuilder
 from builders.openiotsdk import OpenIotSdkApp, OpenIotSdkBuilder
 from builders.qpg import QpgApp, QpgBoard, QpgBuilder
 from builders.telink import TelinkApp, TelinkBoard, TelinkBuilder
+from builders.ti import TIApp, TIBoard, TIBuilder
 from builders.tizen import TizenApp, TizenBoard, TizenBuilder
 
 from .target import BuildTarget, TargetPart
@@ -73,7 +69,8 @@ def BuildHostFakeTarget():
     target.AppendModifier("asan", use_asan=True).ExceptIfRe("-tsan")
     target.AppendModifier("tsan", use_tsan=True).ExceptIfRe("-asan")
     target.AppendModifier("ubsan", use_ubsan=True)
-    target.AppendModifier("libfuzzer", use_tsan=True).OnlyIfRe("-clang")
+    target.AppendModifier("libfuzzer", fuzzing_type=HostFuzzingType.LIB_FUZZER).OnlyIfRe("-clang").ExceptIfRe('-ossfuzz')
+    target.AppendModifier("ossfuzz", fuzzing_type=HostFuzzingType.OSS_FUZZ).OnlyIfRe("-clang").ExceptIfRe('-libfuzzer')
     target.AppendModifier('coverage', use_coverage=True).OnlyIfRe('-(chip-tool|all-clusters)')
     target.AppendModifier('dmalloc', use_dmalloc=True)
     target.AppendModifier('clang', use_clang=True)
@@ -110,6 +107,8 @@ def BuildHostTarget():
         TargetPart('shell', app=HostApp.SHELL),
         TargetPart('ota-provider', app=HostApp.OTA_PROVIDER, enable_ble=False),
         TargetPart('ota-requestor', app=HostApp.OTA_REQUESTOR, enable_ble=False),
+        TargetPart('simulated-app1', app=HostApp.SIMULATED_APP1, enable_ble=False),
+        TargetPart('simulated-app2', app=HostApp.SIMULATED_APP2, enable_ble=False),
         TargetPart('python-bindings', app=HostApp.PYTHON_BINDINGS),
         TargetPart('tv-app', app=HostApp.TV_APP),
         TargetPart('tv-casting-app', app=HostApp.TV_CASTING),
@@ -118,6 +117,7 @@ def BuildHostTarget():
         TargetPart('tests', app=HostApp.TESTS),
         TargetPart('chip-cert', app=HostApp.CERT_TOOL),
         TargetPart('address-resolve-tool', app=HostApp.ADDRESS_RESOLVE),
+        TargetPart('contact-sensor', app=HostApp.CONTACT_SENSOR),
     ]
 
     if (HostBoard.NATIVE.PlatformName() == 'darwin'):
@@ -142,12 +142,14 @@ def BuildHostTarget():
     target.AppendModifier("asan", use_asan=True).ExceptIfRe("-tsan")
     target.AppendModifier("tsan", use_tsan=True).ExceptIfRe("-asan")
     target.AppendModifier("ubsan", use_ubsan=True)
-    target.AppendModifier("libfuzzer", use_tsan=True).OnlyIfRe("-clang")
+    target.AppendModifier("libfuzzer", fuzzing_type=HostFuzzingType.LIB_FUZZER).OnlyIfRe("-clang").ExceptIfRe('-ossfuzz')
+    target.AppendModifier("ossfuzz", fuzzing_type=HostFuzzingType.OSS_FUZZ).OnlyIfRe("-clang").ExceptIfRe('-libfuzzer')
     target.AppendModifier('coverage', use_coverage=True).OnlyIfRe('-(chip-tool|all-clusters)')
     target.AppendModifier('dmalloc', use_dmalloc=True)
     target.AppendModifier('clang', use_clang=True)
     target.AppendModifier('test', extra_tests=True)
     target.AppendModifier('rpc', enable_rpcs=True)
+    target.AppendModifier('with-ui', imgui_ui=True)
 
     return target
 
@@ -157,7 +159,7 @@ def BuildEsp32Target():
 
     # boards
     target.AppendFixedTargets([
-        TargetPart('m5stack', board=Esp32Board.M5Stack).OnlyIfRe('-(all-clusters|ota-requestor)'),
+        TargetPart('m5stack', board=Esp32Board.M5Stack),
         TargetPart('c3devkit', board=Esp32Board.C3DevKit),
         TargetPart('devkitc', board=Esp32Board.DevKitC),
         TargetPart('qemu', board=Esp32Board.QEMU).OnlyIfRe('-tests'),
@@ -191,6 +193,7 @@ def BuildEfr32Target():
     target.AppendFixedTargets([
         TargetPart('brd4161a', board=Efr32Board.BRD4161A),
         TargetPart('brd4187c', board=Efr32Board.BRD4187C),
+        TargetPart('brd4186c', board=Efr32Board.BRD4186C),
         TargetPart('brd4163a', board=Efr32Board.BRD4163A),
         TargetPart('brd4164a', board=Efr32Board.BRD4164A),
         TargetPart('brd4166a', board=Efr32Board.BRD4166A),
@@ -207,6 +210,7 @@ def BuildEfr32Target():
         TargetPart('unit-test', app=Efr32App.UNIT_TEST),
         TargetPart('light', app=Efr32App.LIGHT),
         TargetPart('lock', app=Efr32App.LOCK),
+        TargetPart('thermostat', app=Efr32App.THERMOSTAT)
     ])
 
     target.AppendModifier('rpc', enable_rpcs=True)
@@ -293,6 +297,9 @@ def BuildAndroidTarget():
         TargetPart('java-matter-controller', app=AndroidApp.JAVA_MATTER_CONTROLLER),
     ])
 
+    # Modifiers
+    target.AppendModifier('no-debug', profile=AndroidProfile.RELEASE)
+
     return target
 
 
@@ -365,6 +372,28 @@ def BuildAmebaTarget():
     return target
 
 
+def BuildASRTarget():
+    target = BuildTarget('asr', ASRBuilder)
+
+    # board
+    target.AppendFixedTargets([
+        TargetPart('asr582x', board=ASRBoard.ASR582X),
+        TargetPart('asr595x', board=ASRBoard.ASR595X),
+    ])
+
+    # apps
+    target.AppendFixedTargets([
+        TargetPart('lighting', app=ASRApp.LIGHT),
+    ])
+
+    # modifiers
+    target.AppendModifier('ota', enable_ota_requestor=True)
+    target.AppendModifier('shell', chip_build_libshell=True)
+    target.AppendModifier('no_logging', chip_logging=False)
+
+    return target
+
+
 def BuildK32WTarget():
     target = BuildTarget('k32w', K32WBuilder)
 
@@ -387,21 +416,43 @@ def BuildK32WTarget():
     return target
 
 
-def Buildcc13x2x7_26x2x7Target():
-    target = BuildTarget('cc13x2x7_26x2x7', cc13x2x7_26x2x7Builder)
+def BuildCC13x2x7Target():
+    target = BuildTarget('ti', TIBuilder)
 
-    # apps
+    # board
     target.AppendFixedTargets([
-        TargetPart('all-clusters', app=cc13x2x7_26x2x7App.ALL_CLUSTERS),
-        TargetPart('all-clusters-minimal', app=cc13x2x7_26x2x7App.ALL_CLUSTERS_MINIMAL),
-        TargetPart('lock', app=cc13x2x7_26x2x7App.LOCK),
-        TargetPart('pump', app=cc13x2x7_26x2x7App.PUMP),
-        TargetPart('pump-controller', app=cc13x2x7_26x2x7App.PUMP_CONTROLLER),
-        TargetPart('shell', app=cc13x2x7_26x2x7App.SHELL),
+        TargetPart('cc13x2x7_26x2x7', board=TIBoard.LP_CC2652R7),
     ])
 
-    target.AppendModifier(name="ftd", openthread_ftd=True).ExceptIfRe("-mtd")
-    target.AppendModifier(name="mtd", openthread_ftd=False).ExceptIfRe("-ftd")
+    target.AppendFixedTargets([
+        TargetPart('lighting', app=TIApp.LIGHTING),
+        TargetPart('lock', app=TIApp.LOCK),
+        TargetPart('pump', app=TIApp.PUMP),
+        TargetPart('pump-controller', app=TIApp.PUMP_CONTROLLER),
+    ])
+    target.AppendModifier(name="mtd", openthread_ftd=False)
+
+    return target
+
+
+def BuildCC13x4Target():
+    target = BuildTarget('ti', TIBuilder)
+
+    # board
+    target.AppendFixedTargets([
+        TargetPart('cc13x4_26x4', board=TIBoard.LP_EM_CC1354P10_6)
+    ])
+
+    target.AppendFixedTargets([
+        TargetPart('all-clusters', app=TIApp.ALL_CLUSTERS),
+        TargetPart('lighting', app=TIApp.LIGHTING),
+        TargetPart('lock', app=TIApp.LOCK, openthread_ftd=True),
+        TargetPart('pump', app=TIApp.PUMP, openthread_ftd=False),
+        TargetPart('pump-controller', app=TIApp.PUMP_CONTROLLER, openthread_ftd=False),
+    ])
+
+    target.AppendModifier(name="mtd", openthread_ftd=False)
+    target.AppendModifier(name="ftd", openthread_ftd=True)
 
     return target
 
@@ -428,11 +479,10 @@ def BuildCyw30739Target():
     # apps
     target.AppendFixedTargets([
         TargetPart('light', app=Cyw30739App.LIGHT),
-        TargetPart('lock',  app=Cyw30739App.LOCK),
-        TargetPart('ota-requestor',  app=Cyw30739App.OTA_REQUESTOR),
+        TargetPart('lock', app=Cyw30739App.LOCK),
+        TargetPart('ota-requestor', app=Cyw30739App.OTA_REQUESTOR),
+        TargetPart('switch', app=Cyw30739App.SWITCH),
     ])
-
-    target.AppendModifier(name="no-progress-logging", progress_logging=False)
 
     return target
 
@@ -445,7 +495,7 @@ def BuildQorvoTarget():
         TargetPart('qpg6105', board=QpgBoard.QPG6105),
     ])
 
-    # apps
+   # apps
     target.AppendFixedTargets([
         TargetPart('lock', app=QpgApp.LOCK),
         TargetPart('light', app=QpgApp.LIGHT),
@@ -470,12 +520,14 @@ def BuildTizenTarget():
         TargetPart('all-clusters-minimal', app=TizenApp.ALL_CLUSTERS_MINIMAL),
         TargetPart('chip-tool', app=TizenApp.CHIP_TOOL),
         TargetPart('light', app=TizenApp.LIGHT),
+        TargetPart('tests', app=TizenApp.TESTS),
     ])
 
-    target.AppendModifier(name="no-ble", enable_ble=False)
-    target.AppendModifier(name="no-wifi", enable_wifi=False)
-    target.AppendModifier(name="asan", use_asan=True)
-    target.AppendModifier(name="ubsan", use_ubsan=True)
+    target.AppendModifier("no-ble", enable_ble=False)
+    target.AppendModifier("no-thread", enable_thread=False)
+    target.AppendModifier("no-wifi", enable_wifi=False)
+    target.AppendModifier("asan", use_asan=True)
+    target.AppendModifier("ubsan", use_ubsan=True)
 
     return target
 
@@ -490,7 +542,7 @@ def BuildBouffalolabTarget():
         TargetPart('BL602-NIGHT-LIGHT', board=BouffalolabBoard.BL602_NIGHT_LIGHT, module_type="BL602"),
         TargetPart('XT-ZB6-DevKit', board=BouffalolabBoard.XT_ZB6_DevKit, module_type="BL706C-22"),
         TargetPart('BL706-IoT-DVK', board=BouffalolabBoard.BL706_IoT_DVK, module_type="BL706C-22"),
-        TargetPart('BL706-NIGHT-LIGHT', board=BouffalolabBoard.BL706_NIGHT_LIGHT, module_type="BL702"),
+        TargetPart('BL706-NIGHT-LIGHT', board=BouffalolabBoard.BL706_NIGHT_LIGHT, module_type="BL706C-22"),
     ])
 
     # Apps
@@ -501,6 +553,7 @@ def BuildBouffalolabTarget():
     target.AppendModifier('shell', enable_shell=True)
     target.AppendModifier('115200', baudrate=115200)
     target.AppendModifier('rpc', enable_rpcs=True)
+    target.AppendModifier('cdc', enable_cdc=True)
 
     return target
 
@@ -541,12 +594,22 @@ def BuildTelinkTarget():
     target.AppendFixedTargets([
         TargetPart('all-clusters', app=TelinkApp.ALL_CLUSTERS),
         TargetPart('all-clusters-minimal', app=TelinkApp.ALL_CLUSTERS_MINIMAL),
+        TargetPart('bridge', app=TelinkApp.BRIDGE),
         TargetPart('contact-sensor', app=TelinkApp.CONTACT_SENSOR),
         TargetPart('light', app=TelinkApp.LIGHT),
         TargetPart('light-switch', app=TelinkApp.SWITCH),
+        TargetPart('lock', app=TelinkApp.LOCK),
         TargetPart('ota-requestor', app=TelinkApp.OTA_REQUESTOR),
+        TargetPart('pump', app=TelinkApp.PUMP),
+        TargetPart('pump-controller', app=TelinkApp.PUMP_CONTROLLER),
+        TargetPart('temperature-measurement', app=TelinkApp.TEMPERATURE_MEASUREMENT),
         TargetPart('thermostat', app=TelinkApp.THERMOSTAT),
+        TargetPart('window-covering', app=TelinkApp.WINDOW_COVERING),
     ])
+
+    target.AppendModifier('shell', enable_shell=True)
+    target.AppendModifier('rpc', enable_rpcs=True)
+    target.AppendModifier('factory-data', enable_factory_data=True)
 
     return target
 
@@ -564,10 +627,12 @@ def BuildOpenIotSdkTargets():
 
 BUILD_TARGETS = [
     BuildAmebaTarget(),
+    BuildASRTarget(),
     BuildAndroidTarget(),
     BuildBouffalolabTarget(),
-    Buildcc13x2x7_26x2x7Target(),
     Buildcc32xxTarget(),
+    BuildCC13x2x7Target(),
+    BuildCC13x4Target(),
     BuildCyw30739Target(),
     BuildEfr32Target(),
     BuildEsp32Target(),

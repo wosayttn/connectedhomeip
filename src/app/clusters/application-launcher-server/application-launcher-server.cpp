@@ -31,6 +31,7 @@
 #include <app/AttributeAccessInterface.h>
 #include <app/CommandHandler.h>
 #include <app/ConcreteCommandPath.h>
+#include <app/util/config.h>
 #if CHIP_DEVICE_CONFIG_APP_PLATFORM_ENABLED
 #include <app/app-platform/ContentAppPlatform.h>
 #endif // CHIP_DEVICE_CONFIG_APP_PLATFORM_ENABLED
@@ -55,6 +56,7 @@ static constexpr size_t kApplicationLauncherDelegateTableSize =
 using chip::app::Clusters::ApplicationBasic::CatalogVendorApp;
 using chip::app::Clusters::ApplicationLauncher::Delegate;
 using ApplicationStatusEnum = app::Clusters::ApplicationBasic::ApplicationStatusEnum;
+using chip::Protocols::InteractionModel::Status;
 
 namespace {
 
@@ -105,7 +107,7 @@ void SetDefaultDelegate(EndpointId endpoint, Delegate * delegate)
     }
 }
 
-bool HasFeature(chip::EndpointId endpoint, ApplicationLauncherFeature feature)
+bool HasFeature(chip::EndpointId endpoint, Feature feature)
 {
     bool hasFeature     = false;
     uint32_t featureMap = 0;
@@ -123,7 +125,7 @@ bool HasFeature(chip::EndpointId endpoint, ApplicationLauncherFeature feature)
 CHIP_ERROR Delegate::HandleGetCurrentApp(app::AttributeValueEncoder & aEncoder)
 {
 #if CHIP_DEVICE_CONFIG_APP_PLATFORM_ENABLED
-    if (HasFeature(ApplicationLauncherFeature::kApplicationPlatform))
+    if (HasFeature(Feature::kApplicationPlatform))
     {
         auto & platform = ContentAppPlatform::GetInstance();
         if (platform.HasCurrentApp())
@@ -244,7 +246,7 @@ bool emberAfApplicationLauncherClusterLaunchAppCallback(app::CommandHandler * co
         //  2. Set current app to Content App
         //  3. Set Content App status (basic cluster) to ACTIVE_VISIBLE_FOCUS
         //  4. Call launch app command on Content App
-        if (delegate->HasFeature(ApplicationLauncherFeature::kApplicationPlatform))
+        if (delegate->HasFeature(Feature::kApplicationPlatform))
         {
             ChipLogError(Zcl, "ApplicationLauncher has content platform feature");
             ContentApp * app = ContentAppPlatform::GetInstance().LoadContentApp(&vendorApp);
@@ -301,7 +303,7 @@ exit:
     if (err != CHIP_NO_ERROR)
     {
         ChipLogError(Zcl, "emberAfApplicationLauncherClusterLaunchAppCallback error: %s", err.AsString());
-        emberAfSendImmediateDefaultResponse(EMBER_ZCL_STATUS_FAILURE);
+        command->AddStatus(commandPath, Status::Failure);
     }
 
     return true;
@@ -338,7 +340,7 @@ bool emberAfApplicationLauncherClusterStopAppCallback(app::CommandHandler * comm
         //  3. If this was the current app then stop it
         //  2. Set Content App status (basic cluster) to ACTIVE_STOPPED
         //  4. Call stop app command on Content App
-        if (delegate->HasFeature(ApplicationLauncherFeature::kApplicationPlatform))
+        if (delegate->HasFeature(Feature::kApplicationPlatform))
         {
             ChipLogError(Zcl, "ApplicationLauncher has content platform feature");
             ContentApp * app = ContentAppPlatform::GetInstance().LoadContentApp(&vendorApp);
@@ -390,7 +392,7 @@ exit:
     if (err != CHIP_NO_ERROR)
     {
         ChipLogError(Zcl, "emberAfApplicationLauncherClusterStopAppCallback error: %s", err.AsString());
-        emberAfSendImmediateDefaultResponse(EMBER_ZCL_STATUS_FAILURE);
+        command->AddStatus(commandPath, Status::Failure);
     }
 
     return true;
@@ -427,7 +429,7 @@ bool emberAfApplicationLauncherClusterHideAppCallback(app::CommandHandler * comm
         //  3. If this was the current app then hide it
         //  2. Set Content App status (basic cluster) to ACTIVE_VISIBLE_NOT_FOCUS
         //  4. Call stop app command on Content App
-        if (delegate->HasFeature(ApplicationLauncherFeature::kApplicationPlatform))
+        if (delegate->HasFeature(Feature::kApplicationPlatform))
         {
             ChipLogError(Zcl, "ApplicationLauncher has content platform feature");
             ContentApp * app = ContentAppPlatform::GetInstance().GetContentApp(&vendorApp);
@@ -475,7 +477,7 @@ exit:
     if (err != CHIP_NO_ERROR)
     {
         ChipLogError(Zcl, "emberAfApplicationLauncherClusterStopAppCallback error: %s", err.AsString());
-        emberAfSendImmediateDefaultResponse(EMBER_ZCL_STATUS_FAILURE);
+        command->AddStatus(commandPath, Status::Failure);
     }
 
     return true;

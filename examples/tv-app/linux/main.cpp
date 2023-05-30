@@ -41,7 +41,7 @@
 #include "include/wake-on-lan/WakeOnLanManager.h"
 
 #if defined(ENABLE_CHIP_SHELL)
-#include <lib/shell/Engine.h>
+#include <lib/shell/Engine.h> // nogncheck
 #endif
 
 using namespace chip;
@@ -49,12 +49,6 @@ using namespace chip::Transport;
 using namespace chip::DeviceLayer;
 using namespace chip::AppPlatform;
 using namespace chip::app::Clusters;
-
-bool emberAfBasicClusterMfgSpecificPingCallback(app::CommandHandler * commandObj)
-{
-    emberAfSendDefaultResponse(emberAfCurrentCommand(), EMBER_ZCL_STATUS_SUCCESS);
-    return true;
-}
 
 namespace {
 static AccountLoginManager accountLoginManager;

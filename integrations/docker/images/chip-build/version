@@ -1,1 +1,1 @@
-0.6.39 Version bump reason: [Tizen] Fixup for QEMU docker image
+0.7.15 Version bump reason: [Java] Set JAVA_PATH in chip-build-java and vscode

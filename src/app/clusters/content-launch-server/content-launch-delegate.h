@@ -18,7 +18,6 @@
 
 #pragma once
 
-#include <app-common/zap-generated/af-structs.h>
 #include <app-common/zap-generated/cluster-objects.h>
 
 #include <app/AttributeAccessInterface.h>
@@ -51,7 +50,7 @@ public:
 
     virtual uint32_t HandleGetSupportedStreamingProtocols() = 0;
 
-    bool HasFeature(chip::EndpointId endpoint, ContentLauncherFeature feature);
+    bool HasFeature(chip::EndpointId endpoint, Feature feature);
     virtual uint32_t GetFeatureMap(chip::EndpointId endpoint) = 0;
 
     virtual ~Delegate() = default;

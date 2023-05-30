@@ -16,8 +16,6 @@
 
 import logging
 import os
-import pathlib
-import pty
 import queue
 import re
 import shlex
@@ -31,15 +29,22 @@ from colorama import Fore, Style
 from java.base import DumpProgramOutputToQueue
 from java.commissioning_test import CommissioningTest
 from java.discover_test import DiscoverTest
+from java.im_test import IMTest
 
 
 @click.command()
-@click.option("--app", type=click.Path(exists=True), default=None, help='Path to local application to use, omit to use external apps.')
-@click.option("--app-args", type=str, default='', help='The extra arguments passed to the device.')
-@click.option("--tool-path", type=click.Path(exists=True), default=None, help='Path to java-matter-controller.')
-@click.option("--tool-cluster", type=str, default='pairing', help='The cluster name passed to the java-matter-controller.')
-@click.option("--tool-args", type=str, default='', help='The arguments passed to the java-matter-controller.')
-@click.option("--factoryreset", is_flag=True, help='Remove app configs (/tmp/chip*) before running the tests.')
+@click.option("--app", type=click.Path(exists=True), default=None,
+              help='Path to local application to use, omit to use external apps.')
+@click.option("--app-args", type=str, default='',
+              help='The extra arguments passed to the device.')
+@click.option("--tool-path", type=click.Path(exists=True), default=None,
+              help='Path to java-matter-controller.')
+@click.option("--tool-cluster", type=str, default='pairing',
+              help='The cluster name passed to the java-matter-controller.')
+@click.option("--tool-args", type=str, default='',
+              help='The arguments passed to the java-matter-controller.')
+@click.option("--factoryreset", is_flag=True,
+              help='Remove app configs (/tmp/chip*) before running the tests.')
 def main(app: str, app_args: str, tool_path: str, tool_cluster: str, tool_args: str, factoryreset: bool):
     logging.info("Execute: {script_command}")
 
@@ -50,7 +55,7 @@ def main(app: str, app_args: str, tool_path: str, tool_cluster: str, tool_args: 
             raise Exception("Failed to remove /tmp/chip* for factory reset.")
 
         print("Contents of test directory: %s" % os.getcwd())
-        print(subprocess.check_output(["ls -l"], shell=True).decode('us-ascii'))
+        print(subprocess.check_output(["ls -l"], shell=True).decode('utf-8'))
 
         # Remove native app KVS if that was used
         kvs_match = re.search(r"--KVS (?P<kvs_path>[^ ]+)", app_args)
@@ -83,7 +88,15 @@ def main(app: str, app_args: str, tool_path: str, tool_cluster: str, tool_args: 
         DumpProgramOutputToQueue(
             log_cooking_threads, Fore.GREEN + "APP " + Style.RESET_ALL, app_process, log_queue)
 
-    command = ['java', '-Djava.library.path=' + tool_path + '/lib/jni', '-jar', tool_path + '/bin/java-matter-controller']
+    command = ['java',
+               f'-Djava.library.path={tool_path}/lib/jni',
+               '-cp',
+               ':'.join([
+                   f'{tool_path}/lib/*',
+                   f'{tool_path}/lib/third_party/connectedhomeip/src/controller/java/*',
+                   f'{tool_path}/bin/java-matter-controller',
+               ]),
+               'com.matter.controller.MainKt']
 
     if tool_cluster == 'pairing':
         logging.info("Testing pairing cluster")
@@ -98,6 +111,15 @@ def main(app: str, app_args: str, tool_path: str, tool_cluster: str, tool_args: 
         logging.info("Testing discover cluster")
 
         test = DiscoverTest(log_cooking_threads, log_queue, command, tool_args)
+        try:
+            test.RunTest()
+        except Exception as e:
+            logging.error(e)
+            sys.exit(1)
+    elif tool_cluster == 'im':
+        logging.info("Testing IM")
+
+        test = IMTest(log_cooking_threads, log_queue, command, tool_args)
         try:
             test.RunTest()
         except Exception as e:

@@ -36,11 +36,12 @@ tests:
     - label:
           "DUT reads all supported mandatory attributes from TH one at a time in
           a manufacturer specific order"
+      PICS: TSTAT.C.AM-READ
       verification: |
           Product maker needs to provide instructions for how to trigger the command on the DUT. For comparison, the DUT behavior for this test step can be simulated using chip-tool (when DUT is a commissioner/Client)
            ./chip-tool thermostat read  local-temperature  1 1
 
-          Verify the ReadRequestMessage on TH(all-clusters-app)
+          Verify the ReadRequestMessage on TH(thermostat-app)
 
           [1666952132.254664][5523:5523] CHIP:EM: Handling via exchange: 45183r, Delegate: 0xaaaad0bf6d38
           [1666952132.254810][5523:5523] CHIP:IM: Received Read request
@@ -113,7 +114,7 @@ tests:
           ./chip-tool thermostat read  control-sequence-of-operation 1 1
 
 
-          Verify the ReadRequestMessage on TH(all-clusters-app)
+          Verify the ReadRequestMessage on TH(thermostat-app)
 
           [1666952211.603156][5523:5523] CHIP:EM: Handling via exchange: 32228r, Delegate: 0xaaaad0bf6d38
           [1666952211.603251][5523:5523] CHIP:IM: Received Read request
@@ -184,7 +185,7 @@ tests:
 
           ./chip-tool thermostat read   system-mode    1 1
 
-          Verify the ReadRequestMessage on TH(all-clusters-app)
+          Verify the ReadRequestMessage on TH(thermostat-app)
           [1666952247.579164][5523:5523] CHIP:EM: Handling via exchange: 50210r, Delegate: 0xaaaad0bf6d38
           [1666952247.579281][5523:5523] CHIP:IM: Received Read request
           [1666952247.579476][5523:5523] CHIP:DMG: ReadRequestMessage =
@@ -255,6 +256,7 @@ tests:
     - label:
           "DUT reads all supported optional attributes from TH one at a time in
           a manufacturer specific order"
+      PICS: TSTAT.C.AO-READ
       verification: |
           Most of optional attribute is not implemented in SDK
 
@@ -265,13 +267,14 @@ tests:
     - label:
           "DUT writes a suitable value to all supported mandatory attributes on
           the TH one at a time in a manufacturer specific order"
+      PICS: TSTAT.C.AM-WRITE
       verification: |
           Product maker needs to provide instructions for how to trigger the command on the DUT. For comparison, the DUT behavior for this test step can be simulated using chip-tool (when DUT is a commissioner/Client)
 
 
           ./chip-tool thermostat write system-mode 2 1 1
 
-          Verify the WriteRequestMessage on TH(all-clusters-app)
+          Verify the WriteRequestMessage on TH(thermostat-app)
 
           [1666952315.223166][5547:5547] CHIP:EM: Handling via exchange: 40014r, Delegate: 0xaaaabacd6d38
           [1666952315.223290][5547:5547] CHIP:IM: Received Write request
@@ -345,7 +348,7 @@ tests:
 
 
            ./chip-tool thermostat write  control-sequence-of-operation 1 1 1
-          Verify the WriteRequestMessage on TH(all-clusters-app)
+          Verify the WriteRequestMessage on TH(thermostat-app)
 
           [1666952355.926940][5547:5547] CHIP:EM: Handling via exchange: 19955r, Delegate: 0xaaaabacd6d38
           [1666952355.927042][5547:5547] CHIP:IM: Received Write request
@@ -421,6 +424,7 @@ tests:
     - label:
           "DUT writes a suitable value to all supported optional attributes on
           the TH one at a time in a manufacturer specific order"
+      PICS: TSTAT.C.AO-WRITE
       verification: |
           Verify by sending the optional attribute which is mentioned in spec
 
@@ -814,7 +818,7 @@ tests:
 
           ./chip-tool thermostat read  control-sequence-of-operation 1 1
 
-          Verify the ReadRequestMessage on TH(all-clusters-app)
+          Verify the ReadRequestMessage on TH(all-cluster-minimal-app)
 
           [1666951649.029221][5466:5466] CHIP:EM: Handling via exchange: 52404r, Delegate: 0xaaaab26280e0
           [1666951649.029318][5466:5466] CHIP:IM: Received Read request
@@ -957,6 +961,7 @@ tests:
     - label:
           "DUT reads all supported optional attributes from TH one at a time in
           a manufacturer specific order"
+      PICS: TSTAT.C.AO-READ
       verification: |
           Verify by sending the optional attribute which is mentioned in spec
 
@@ -966,6 +971,7 @@ tests:
     - label:
           "DUT writes a suitable value to all supported optional attributes on
           the TH one at a time in a manufacturer specific order"
+      PICS: TSTAT.C.AO-WRITE
       verification: |
           Verify by sending the optional attribute which is mentioned in spec
 

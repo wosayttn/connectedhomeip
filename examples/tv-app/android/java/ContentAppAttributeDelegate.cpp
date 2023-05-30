@@ -23,6 +23,7 @@
 #include "ContentAppAttributeDelegate.h"
 #include <app-common/zap-generated/cluster-objects.h>
 #include <app/AttributeAccessInterface.h>
+#include <app/util/config.h>
 #include <jni.h>
 #include <lib/support/CHIPJNIError.h>
 #include <lib/support/JniReferences.h>
@@ -48,7 +49,7 @@ std::string ContentAppAttributeDelegate::Read(const chip::app::ConcreteReadAttri
 
     jstring resp =
         (jstring) env->CallObjectMethod(mContentAppEndpointManager, mReadAttributeMethod, static_cast<jint>(aPath.mEndpointId),
-                                        static_cast<jint>(aPath.mClusterId), static_cast<jint>(aPath.mAttributeId));
+                                        static_cast<jlong>(aPath.mClusterId), static_cast<jlong>(aPath.mAttributeId));
     if (env->ExceptionCheck())
     {
         ChipLogError(Zcl, "Java exception in ContentAppAttributeDelegate::Read");

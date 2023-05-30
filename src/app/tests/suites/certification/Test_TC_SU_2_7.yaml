@@ -34,7 +34,7 @@ tests:
 
           Trigger OTA query using command
 
-          otasoftwareupdaterequestor announce-ota-provider 0xDEADBEEF 0 0 0 0x1234567890 0
+          otasoftwareupdaterequestor announce-otaprovider 0xDEADBEEF 0 0 0 0x1234567890 0
 
           where 0x1234567890 is OTA Requestor node ID and 0xDEADBEEF is OTA Provider node ID
 
@@ -55,7 +55,7 @@ tests:
 
     - label:
           "DUT sends a QueryImage command to the TH/OTA-P. TH/OTA-P sends a
-          QueryImageResponse back to DUT. QueryStatus is set to Busy."
+          QueryImageResponse back to DUT. QueryStatus is set to 'Busy'."
       verification: |
           ./chip-tool interactive start
 
@@ -65,7 +65,7 @@ tests:
 
           Trigger OTA query using command
 
-          otasoftwareupdaterequestor announce-ota-provider 0xDEADBEEF 0 0 0 0x1234567890 0
+          otasoftwareupdaterequestor announce-otaprovider 0xDEADBEEF 0 0 0 0x1234567890 0
 
           where 0x1234567890 is OTA Requestor node ID and 0xDEADBEEF is OTA Provider node ID
 
@@ -106,7 +106,7 @@ tests:
 
           Kill OTA Provider App before issuing query using
 
-          otasoftwareupdaterequestor announce-ota-provider 0xDEADBEEF 0 0 0 0x1234567890 0
+          otasoftwareupdaterequestor announce-otaprovider 0xDEADBEEF 0 0 0 0x1234567890 0
 
           where 0x1234567890 is OTA Requestor node ID and 0xDEADBEEF is OTA Provider node ID
 
@@ -142,7 +142,7 @@ tests:
 
           Trigger OTA query using command
 
-          otasoftwareupdaterequestor announce-ota-provider 0xDEADBEEF 0 0 0 0x1234567890 0
+          otasoftwareupdaterequestor announce-otaprovider 0xDEADBEEF 0 0 0 0x1234567890 0
 
           where 0x1234567890 is OTA Requestor node ID and 0xDEADBEEF is OTA Provider node ID
 
@@ -153,20 +153,19 @@ tests:
           "Force an error during the download of the OTA image to the DUT. Wait
           for the Idle timeout which should be no less than 5 minutes."
       verification: |
-          ./chip-tool interactive start
-
-          Subscribe to StateTransition and DownloadError events using command
-
-          otasoftwareupdaterequestor subscribe-event-by-id 0,2 30 60 0x1234567890 0
+          ../chip-tool interactive start
 
           Trigger OTA query using command
 
-          otasoftwareupdaterequestor announce-ota-provider 0xDEADBEEF 0 0 0 0x1234567890 0
+          otasoftwareupdaterequestor announce-otaprovider 0xDEADBEEF 0 0 0 0x1234567890 0
 
           where 0x1234567890 is OTA Requestor node ID and 0xDEADBEEF is OTA Provider node ID
 
+          Force an error during the download of the OTA image to the DUT. Wait for the Idle timeout which should be no less than 5 minutes.
+
+          otasoftwareupdaterequestor subscribe-event download-error 5 10 0x1234567890 0 --timeout 65535
+
           Verify that the chip-tool receives a DownloadError event notification on BDX Idle timeout which should be no less than 5 minutes.
-          Verify that the chip-tool receives a StateTransition event notification for the state change to Idle.
 
           [1651520178426] [98732:38086919] CHIP: [TOO]   DownloadError: {
           [1651520178426] [98732:38086919] CHIP: [TOO]     SoftwareVersion: 2
@@ -174,6 +173,10 @@ tests:
           [1651520178426] [98732:38086919] CHIP: [TOO]     ProgressPercent: 65
           [1651520178426] [98732:38086919] CHIP: [TOO]     PlatformCode: null
           [1651520178426] [98732:38086919] CHIP: [TOO]    }
+
+          otasoftwareupdaterequestor subscribe-event-by-id 0 30 60 0x1234567890 0
+
+          Verify that the chip-tool receives a StateTransition event notification for the state change to Idle.
 
           [1654558704063] [57765:69159905] CHIP: [TOO]   StateTransition: {
           [1654558704064] [57765:69159905] CHIP: [TOO]     PreviousState: 4
@@ -186,7 +189,7 @@ tests:
     - label:
           "After the OTA image is transferred, DUT sends ApplyUpdateRequest to
           the OTA-P. OTA-P/TH sends the ApplyUpdateResponse Command to the DUT.
-          Action field is set to AwaitNextAction."
+          Action field is set to 'AwaitNextAction'."
       verification: |
           ./chip-tool interactive start
 
@@ -196,7 +199,7 @@ tests:
 
           Trigger OTA query using command
 
-          otasoftwareupdaterequestor announce-ota-provider 0xDEADBEEF 0 0 0 0x1234567890 0
+          otasoftwareupdaterequestor announce-otaprovider 0xDEADBEEF 0 0 0 0x1234567890 0
 
           where 0x1234567890 is OTA Requestor node ID and 0xDEADBEEF is OTA Provider node ID
 
@@ -236,7 +239,7 @@ tests:
           software image version is being executed on the DUT. OTA-Subscriber
           sends a read request to read the VersionApplied event from the DUT."
       verification: |
-          ./chip-tool otasoftwareupdaterequestor announce-ota-provider 0xDEADBEEF 0 0 0 0x1234567890 0
+          ./chip-tool otasoftwareupdaterequestor announce-otaprovider 0xDEADBEEF 0 0 0 0x1234567890 0
 
           where 0x1234567890 is OTA Requestor node ID and 0xDEADBEEF is OTA Provider node ID
 

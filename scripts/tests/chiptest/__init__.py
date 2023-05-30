@@ -22,7 +22,7 @@ from pathlib import Path
 from typing import Iterator, Set
 
 from . import linux, runner
-from .test_definition import ApplicationPaths, TestDefinition, TestRunTime, TestTag, TestTarget
+from .test_definition import ApplicationPaths, TestDefinition, TestTag, TestTarget
 
 _DEFAULT_CHIP_ROOT = os.path.abspath(
     os.path.join(os.path.dirname(__file__), "..", "..", ".."))
@@ -84,10 +84,12 @@ def _GetManualTests() -> Set[str]:
 
 
 def _GetFlakyTests() -> Set[str]:
-    """List of flaky tests, ideally this list should become empty."""
-    return {
-        "Test_TC_OO_2_4.yaml"
-    }
+    """List of flaky tests.
+
+    While this list is empty, it remains here in case we need to quickly add a new test
+    that is flaky.
+    """
+    return set()
 
 
 def _GetSlowTests() -> Set[str]:
@@ -128,10 +130,15 @@ def _GetSlowTests() -> Set[str]:
 def _GetInDevelopmentTests() -> Set[str]:
     """Tests that fail in YAML for some reason.
 
-       Goal is for this set to become empty.
+       Currently this is empty and returns an empty set, but this is kept around in case
+       there are tests that are a work in progress.
     """
     return {
-        "TestGroupMessaging.yaml",     # Needs group support in repl
+        "Test_AddNewFabricFromExistingFabric.yaml",     # chip-repl does not support GetCommissionerRootCertificate and IssueNocChain command
+        "TestEqualities.yaml",              # chip-repl does not support pseudo-cluster commands that return a value
+        "TestExampleCluster.yaml",          # chip-repl does not load custom pseudo clusters
+        "TestClientMonitoringCluster.yaml",  # Client Monitoring Tests need a rework after the XML update
+        "Test_TC_TIMESYNC_1_1.yaml"         # Time sync SDK is not yet ready
     }
 
 
@@ -150,7 +157,13 @@ def _AllYamlTests():
 
 
 def target_for_name(name: str):
-    if name.startswith("TV_") or name.startswith("Test_TC_MC_") or name.startswith("Test_TC_LOWPOWER_") or name.startswith("Test_TC_KEYPADINPUT_") or name.startswith("Test_TC_APPLAUNCHER_") or name.startswith("Test_TC_MEDIAINPUT_") or name.startswith("Test_TC_WAKEONLAN_") or name.startswith("Test_TC_CHANNEL_") or name.startswith("Test_TC_MEDIAPLAYBACK_") or name.startswith("Test_TC_AUDIOOUTPUT_") or name.startswith("Test_TC_TGTNAV_") or name.startswith("Test_TC_APBSC_") or name.startswith("Test_TC_CONTENTLAUNCHER_") or name.startswith("Test_TC_ALOGIN_"):
+    if (name.startswith("TV_") or name.startswith("Test_TC_MC_") or
+            name.startswith("Test_TC_LOWPOWER_") or name.startswith("Test_TC_KEYPADINPUT_") or
+            name.startswith("Test_TC_APPLAUNCHER_") or name.startswith("Test_TC_MEDIAINPUT_") or
+            name.startswith("Test_TC_WAKEONLAN_") or name.startswith("Test_TC_CHANNEL_") or
+            name.startswith("Test_TC_MEDIAPLAYBACK_") or name.startswith("Test_TC_AUDIOOUTPUT_") or
+            name.startswith("Test_TC_TGTNAV_") or name.startswith("Test_TC_APBSC_") or
+            name.startswith("Test_TC_CONTENTLAUNCHER_") or name.startswith("Test_TC_ALOGIN_")):
         return TestTarget.TV
     if name.startswith("DL_") or name.startswith("Test_TC_DRLK_"):
         return TestTarget.LOCK
@@ -175,14 +188,19 @@ def tests_with_command(chip_tool: str, is_manual: bool):
     if is_manual:
         test_tags.add(TestTag.MANUAL)
 
+    in_development_tests = [s.replace(".yaml", "") for s in _GetInDevelopmentTests()]
+
     for name in result.stdout.decode("utf8").split("\n"):
         if not name:
             continue
 
         target = target_for_name(name)
+        tags = test_tags.copy()
+        if name in in_development_tests:
+            tags.add(TestTag.IN_DEVELOPMENT)
 
         yield TestDefinition(
-            run_name=name, name=name, target=target, tags=test_tags
+            run_name=name, name=name, target=target, tags=tags
         )
 
 

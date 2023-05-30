@@ -212,9 +212,9 @@ enum PublicEventTypes
     kOperationalNetworkEnabled,
 
     /**
-     * Signals that DNS-SD platform layer was initialized and is ready to operate.
+     * Signals that DNS-SD has been initialized and is ready to operate.
      */
-    kDnssdPlatformInitialized,
+    kDnssdInitialized,
 
     /**
      * Signals that DNS-SD backend was restarted and services must be published again.
@@ -494,6 +494,10 @@ struct ChipDeviceEvent final
             uint64_t nodeId;
             FabricIndex fabricIndex;
         } CommissioningComplete;
+        struct
+        {
+            FabricIndex fabricIndex;
+        } BindingsChanged;
 
         struct
         {
