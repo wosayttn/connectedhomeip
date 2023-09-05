@@ -141,7 +141,7 @@ Due to python version, we need to disable python executing buildroot built.
 test@575f27a6d251:~/shared/buildroot/output/host/bin$ mkdir _bk && mv python3  python3.9 _bk
 ```
 
-### CHIP exampls
+### CHIP Examples
 
 Install related matter dependencies packages in docker.
 
